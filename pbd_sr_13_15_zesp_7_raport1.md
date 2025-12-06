@@ -14,7 +14,88 @@ Autorzy:
 
 ---
 
-## 1. Wymagania i funkcje systemu
+# 1. Wymagania i funkcje systemu
+
+##
+### Zarządzanie produktami
+- Rejestracja produktów i ich kategorii.
+- Definicja struktury produktu (lista części i robocizny).
+- Obliczanie kosztu i mocy przerobowej.
+### Zarządzanie magazynem
+- Rejestracja części i stanów magazynowych.
+- Rejestracja stanów magazynowych produktów gotowych.
+- Aktualizacja stanów magazynowych przy sprzedaży i produkcji.
+- Rejestracja planów produkcji.
+### Planowanie produkcji
+- Ustalanie zapotrzebowania na podstawie zamówień.
+- Sprawdzanie dostępności surowców.
+- Szacowanie czasu produkcji w oparciu o moce przerobowe.
+- Tworzenie planu produkcji produktów brakujących w magazynie.
+### Zarządzanie zamówieniami
+- Składanie zamówień przez klientów indywidualnych i firmowych.
+- Obsługa płatności.
+- Możliwość dodania jednostkowego rabatu.
+- Sprawdzenie dostępności produktów w magazynie.
+- Obsługa zamówień wymagających produkcji.
+### Raportowanie (analityka danych)
+- Raporty kosztów produkcji: jednostkowe, grup produktowych; kwartalne/miesięczne/roczne.
+- Raporty stanów magazynowych (produkty i surowce) oraz planów produkcji.
+- Raporty zamówień klientów (także z rabatami) z opcją filtrowania po okresach czasu.
+- Raporty sprzedaży grup produktów (miesiące i tygodnie).
+- Raport kosztów produkcji w ujęciu tygodniowym i miesięcznym.
+- Raporty planów wytwórczych w wybranych okresach.
+### Narzędzia bazy danych
+- Procedury, funkcje (np. obliczanie kosztów).
+- Triggery aktualizujące stany.
+- Widoki analityczne do raportów.
+
+## Use cases:
+### UC1: Rejestracja produktu
+Aktor: Administrator / Planista produkcji
+Opis: Dodanie nowego produktu, kategorii, ceny itp.
+
+### UC2: Obliczenie kosztu produkcji
+Aktor: Planista produkcji
+Dane wejściowe: ID produktu
+System: sumuje koszty części, czas robocizny.
+Wynik: koszt jednostkowy.
+
+### UC3: Sprawdzenie dostępności magazynowej
+Aktor: Magazynier / System produkcji
+Dane: ID produktu
+Wynik: status (dostępny / brak części / brak produktu).
+
+### UC4: Złożenie zamówienia
+Aktor: Klient / Dział sprzedaży
+Kroki:
+klient wybiera produkty,
+system sprawdza stany,
+dodaje rabaty,
+przelicza koszt,
+rejestruje zamówienie.
+### UC5: Planowanie produkcji
+Aktor: Planista
+System:
+sprawdza zamówienia wymagające produkcji,
+analizuje stany części,
+określa czas wykonania,
+tworzy plan produkcji.
+### UC6: Realizacja produkcji
+Aktor: Produkcja
+System:
+pobiera części z magazynu,
+aktualizuje stany,
+dodaje produkt do magazynu.
+### UC7: Generowanie raportów
+Aktor: Zarząd / Analityk
+Rodzaje raportów:
+koszty produkcji (różne okresy),
+stany magazynowe,
+zamówienia klientów,
+sprzedaż tygodniowa/miesięczna,
+plany produkcji.
+
+
 
 [TODO: #1 np. lista wymagań, doprecyzowanie wymagań, ,np. historyjki użytkownika, np. przypadki użycia itp.]: #
 
