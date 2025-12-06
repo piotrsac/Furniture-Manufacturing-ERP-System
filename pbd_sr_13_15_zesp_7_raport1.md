@@ -52,9 +52,9 @@ Autorzy:
 
 ## Use cases:
 ### UC1: Rejestracja produktu
-**Aktor:** Administrator / Planista produkcji  
-**Cel:** Dodanie nowego produktu do systemu.  
-**Wyzwalacz:** Potrzeba wprowadzenia nowego produktu.  
+**Aktor:** Administrator / Planista produkcji
+**Cel:** Dodanie nowego produktu do systemu.
+**Wyzwalacz:** Potrzeba wprowadzenia nowego produktu.
 
 #### Główny przebieg:
 - Aktor wybiera opcję „Dodaj produkt”.
@@ -65,9 +65,9 @@ Autorzy:
 ---
 
 ### UC2: Obliczenie kosztu produkcji
-**Aktor:** Planista produkcji  
-**Cel:** Wyliczenie jednostkowego kosztu produktu.  
-**Dane wejściowe:** ID produktu.  
+**Aktor:** Planista produkcji
+**Cel:** Wyliczenie jednostkowego kosztu produktu.
+**Dane wejściowe:** ID produktu.
 
 #### Główny przebieg:
 - Planista wybiera produkt.
@@ -79,9 +79,9 @@ Autorzy:
 ---
 
 ### UC3: Sprawdzenie dostępności magazynowej
-**Aktor:** Magazynier / System produkcji  
-**Cel:** Zweryfikowanie dostępności produktu lub jego części.  
-**Dane wejściowe:** ID produktu.  
+**Aktor:** Magazynier / System produkcji
+**Cel:** Zweryfikowanie dostępności produktu lub jego części.
+**Dane wejściowe:** ID produktu.
 
 #### Główny przebieg:
 - Aktor lub system inicjuje sprawdzenie stanu magazynowego.
@@ -96,8 +96,8 @@ Autorzy:
 ---
 
 ### UC4: Złożenie zamówienia
-**Aktor:** Klient / Dział sprzedaży  
-**Cel:** Zarejestrowanie zamówienia w systemie.  
+**Aktor:** Klient / Dział sprzedaży
+**Cel:** Zarejestrowanie zamówienia w systemie.
 
 #### Główny przebieg:
 - Klient wybiera produkty.
@@ -110,21 +110,20 @@ Autorzy:
 ---
 
 ### UC5: Planowanie produkcji
-**Aktor:** Planista produkcji  
-**Cel:** Utworzenie planu produkcji.  
+**Aktor:** Planista produkcji
+**Cel:** Utworzenie planu produkcji.
 
 #### Główny przebieg:
 - System pobiera zamówienia wymagające produkcji.
 - System analizuje dostępność części.
 - System określa wymagany czas produkcji.
-- System generuje propozycję planu produkcji.
 - Planista zatwierdza plan.
 
 ---
 
 ### UC6: Realizacja produkcji
-**Aktor:** Pracownik produkcji / System produkcji  
-**Cel:** Zrealizowanie procesu produkcyjnego.  
+**Aktor:** Pracownik produkcji / System produkcji
+**Cel:** Zrealizowanie procesu produkcyjnego.
 
 #### Główny przebieg:
 - System generuje zapotrzebowanie na części.
@@ -135,8 +134,8 @@ Autorzy:
 ---
 
 ### UC7: Generowanie raportów
-**Aktor:** Zarząd / Analityk  
-**Cel:** Analiza danych produkcyjnych, magazynowych i sprzedażowych.  
+**Aktor:** Zarząd / Analityk
+**Cel:** Analiza danych produkcyjnych, magazynowych i sprzedażowych.
 
 #### Rodzaje raportów:
 - koszty produkcji (wg okresów),
@@ -150,22 +149,25 @@ Autorzy:
 - System pobiera wymagane dane.
 - System generuje raport i udostępnia go do wglądu lub eksportu.
 
+---
+<br>
 
+## Diagram przypadków użycia
 
-
-[TODO: #1 np. lista wymagań, doprecyzowanie wymagań, ,np. historyjki użytkownika, np. przypadki użycia itp.]: #
-
-## 2. Baza danych
-
-### Schemat bazy danych
-
-[TODO: #2 diagram (rysunek) przedstawiający schemat bazy danych]: #
 <p align="center">
-  <img src="Projekt_bazy_v0-2025-12-06_12-53.svg" alt="Diagram" width="800">
+  <img src="use-case-diagram.png" alt="Diagram przypadków użycia" width="800">
+</p>
+
+# 2. Baza danych
+
+## Schemat bazy danych
+
+<p align="center">
+  <img src="Projekt_bazy_v0-2025-12-06_14-07.png" alt="Diagram" width="800">
 </p>
 
 
-### Opis poszczególnych tabel
+<!-- ### Opis poszczególnych tabel
 
 [TODO: #3 Dla każdej tabeli kod DDL wraz z zaimplementowanymi war. integralności, + ewentualnie opis, np. w formie tabelki]: #
 
@@ -181,7 +183,7 @@ create table tab1 (
 | :------------: | :-: | :--------: |
 |    Atrybut 1   |     |            |
 |    Atrybut 2   |     |            |
-|    Atrybut 3   |     |            |
+|    Atrybut 3   |     |            | -->
 
 <!-- Jak ktos woli tabelke w html -->
 <!-- <table style="border-collapse: collapse; width: 100%; text-align: center;">
