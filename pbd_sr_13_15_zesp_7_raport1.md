@@ -160,6 +160,10 @@ Autorzy:
 ### Schemat bazy danych
 
 [TODO: #2 diagram (rysunek) przedstawiający schemat bazy danych]: #
+<p align="center">
+  <img src="Projekt_bazy_v0-2025-12-06_12-53.svg" alt="Diagram" width="500">
+</p>
+
 
 ### Opis poszczególnych tabel
 
