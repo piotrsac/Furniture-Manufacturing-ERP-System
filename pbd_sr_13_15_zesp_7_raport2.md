@@ -204,7 +204,9 @@ CREATE TABLE dbo.Categories (
     CONSTRAINT PK_Categories PRIMARY KEY CLUSTERED (ID)
 );
 ```
+
 - tabela pozwalająca przypisać kategorię danego produktu (np. jeśli dany produkt to krzesło to należy do kategorii "meble")
+
 ### Klienci
 
 ```SQL
@@ -222,6 +224,7 @@ CREATE TABLE dbo.Clients (
     CONSTRAINT PK_Clients PRIMARY KEY CLUSTERED (ID)
 );
 ```
+
 - tabela zawierająca dane klientów składających zamówienia(nazwę klienta, dane kontaktowe- nr telefonu + email opcjonalnie, NIP - opcjonalnie, dane adresowe oraz typ klienta- 'I' jeśli to klient indywidualny, 'F' jeśli to firma)
 
 ### Dni bez pracy/produkcji
@@ -235,7 +238,9 @@ CREATE TABLE DaysOff (
     CONSTRAINT DaysOff_pk PRIMARY KEY  (ID)
 );
 ```
+
 - tabela zawierająca przedziały czasowe, w których nie odbywała się produkcja (dni wolne lub przerwy techniczne spowodowane awarią) wraz z krótkim opisem przyczyny zawieszenia produkcji
+
 ### Szczegóły zamówienia
 
 ```SQL
@@ -247,7 +252,9 @@ CREATE TABLE dbo.OrderDetails (
     CONSTRAINT PK_OrderDetails PRIMARY KEY CLUSTERED (Order_ID,Product_ID)
 );
 ```
+
 - tabela łącznikowa pomiędzy produktami a zamówieniami, zawiera informacje na temat ilości zamawianego produktu w danym zamówieniu oraz o cenie jednostkowej tego produktu
+
 ### Zamówienia
 
 ```SQL
@@ -261,7 +268,9 @@ CREATE TABLE dbo.Orders (
     CONSTRAINT PK_Orders PRIMARY KEY CLUSTERED (ID)
 );
 ```
-- tabela zawierająca informacje na temat zamówień (nazwa klienta zamawiającego, datę zamówienia, datę zakończenia zamówienia - skompletowane zamówienie przygotowane do wysyłki, status zamówienia- "w trakcie produkcji", "skończone" oraz rabat jednostkowy przyznawany do zamówienia) 
+
+- tabela zawierająca informacje na temat zamówień (nazwa klienta zamawiającego, datę zamówienia, datę zakończenia zamówienia - skompletowane zamówienie przygotowane do wysyłki, status zamówienia- "w trakcie produkcji", "skończone" oraz rabat jednostkowy przyznawany do zamówienia)
+
 ### Kategorie części
 
 ```SQL
@@ -271,6 +280,7 @@ CREATE TABLE dbo.PartTypes (
     CONSTRAINT PK_PartTypes PRIMARY KEY CLUSTERED (ID)
 );
 ```
+
 - tabela pozwalająca przypisać kategorię danej częsci (np. jeśli dana część to śruba należy do kategorii "metal")
 
 ### Części
@@ -286,7 +296,9 @@ CREATE TABLE dbo.Parts (
     CONSTRAINT PK_Parts PRIMARY KEY CLUSTERED (ID)
 );
 ```
+
 - tabela zaierająca informacje na temat części (nazwę danej części, połączenie z kategorią do której należy, cenę danej części, moc przerobową- ile części danego typu jesteśmy w stanie wyprodukować jednego dnia, ilość jaka obecnie jest w magazynie)
+
 ### Części danego produktu (łącznikowa)
 
 ```SQL
@@ -297,7 +309,9 @@ CREATE TABLE dbo.ProductParts (
     CONSTRAINT PK_ProductParts PRIMARY KEY CLUSTERED (Product_ID,Part_ID)
 );
 ```
+
 - tabela łącznikowa pomiędzy produktem a częściami z jakich się składa, zawiera informację ile części danego typu jest potrzebne do złożenia danego produktu
+
 ### Zarezerwowanie produkowanych rzeczy do konkretnego zamówienia
 
 ```SQL
@@ -309,7 +323,9 @@ CREATE TABLE ProductionAllocations (
     CONSTRAINT ProductionAllocations_pk PRIMARY KEY  (ID)
 );
 ```
+
 - tabela pozwalająca na zarezerwowanie produktów będących w trakcie produkcji do konkretnego zamówienia (z danego planu produkcji możemy zarezerwować konkretną ilość, którą wykorzystamy do danego zamówienia)
+
 ### Dzienne sprawozdanie z wykonywania planu produkcyjnego
 
 ```SQL
@@ -323,7 +339,9 @@ CREATE TABLE ProductionDailyLog (
     CONSTRAINT ProductionDailyLog_pk PRIMARY KEY  (ID)
 );
 ```
+
 - tabela pozwalająca uzyskać informacje na temat planów produkcyjnych w danym dniu (dla konkretnego planu produkcyjnego w danym dniu zawiera informację o ilości produktu, którą udało się wyprodukować, informację o tym czy produkcja się udała lub jeśli się nie udała to powód- zapisane w DailyLog (oraz w QualityStatus sam efekt końcowy - 'K' udana produkcja, 'F' nie udana produkcja)
+
 ### Plany produkcyjne (cykliczne bądź wymuszone popytem)
 
 ```SQL
@@ -337,7 +355,9 @@ CREATE TABLE dbo.ProductionPlans (
     CONSTRAINT PK_ProductionPlans PRIMARY KEY CLUSTERED (ID)
 );
 ```
-- tabela zaplanowanych produkcji pozwalająca sprawdzić dostępność danego produktu na konkretny dzień, zawiera informacje o każdej produkcji (produkt i jego ilość produkowanych w danej produkcji, status produkcji -'R'- zrealizowane, 'P'- w trakcie, datę zakończenia danej produkcji, typ produkcji -  czy zamowienie jest cykliczne(wypełnianie magazynu tak żeby produkty byly dostepne) - 'C', czy zamowienie jest robione pod zamowienie (klient zamowil ale brakuje w magazynie ) - 'O')
+
+- tabela zaplanowanych produkcji pozwalająca sprawdzić dostępność danego produktu na konkretny dzień, zawiera informacje o każdej produkcji (produkt i jego ilość produkowanych w danej produkcji, status produkcji -'R'- zrealizowane, 'P'- w trakcie, datę zakończenia danej produkcji, typ produkcji - czy zamowienie jest cykliczne(wypełnianie magazynu tak żeby produkty byly dostepne) - 'C', czy zamowienie jest robione pod zamowienie (klient zamowil ale brakuje w magazynie ) - 'O')
+
 ### Produkty
 
 ```SQL
@@ -351,10 +371,14 @@ CREATE TABLE dbo.Products (
     ProductionCost AS ([dbo].[ObliczKosztProdukcji]([ID])),
     Price AS ([dbo].[ObliczKosztProdukcji]([ID]) * 1.5),
 
-    CONSTRAINT PK_Products PRIMARY KEY CLUSTERED (ID),
-    CONSTRAINT FK_Products_Categories FOREIGN KEY (Category_ID) REFERENCES dbo.Categories(ID)
+    CONSTRAINT
+        PK_Products PRIMARY KEY CLUSTERED (ID),
+    CONSTRAINT
+        FK_Products_Categories FOREIGN KEY (Category_ID)
+            REFERENCES dbo.Categories(ID)
 );
 ```
+
 - tabela zawierająca informacje na temat produktów (nazwę, kategorię do jakiej należy, ilość jaka obecnie jest w magazynie, moc przerobową- maksymalna ilość jaką możemy wyprodukować w ciągu jednego dnia, koszt produkcji oraz cenę)
 - kolumny ProductionCost i Price wyliczane funkcją poniżej
 
@@ -367,14 +391,15 @@ CREATE TABLE dbo.Status (
     CONSTRAINT PK_Status PRIMARY KEY CLUSTERED (ID)
 );
 ```
+
 - tabela pozwalająca określić jaki status ma konkretne zamówienie- "w trakcie kopmletowania" lub "skończone"
 <!-- - Opis:
 
 | Nazwa atrybutu | Typ | Opis/Uwagi |
-| :------------: | :-: | :--------: |
-|    Atrybut 1   |     |            |
-|    Atrybut 2   |     |            |
-|    Atrybut 3   |     |            | -->
+| :------------: | :-: | :--------: | --- |
+|   Atrybut 1    |     |            |
+|   Atrybut 2    |     |            |
+|   Atrybut 3    |     |            | --> |
 
 [Chyba na razie nie potrzebne?]: #
 
