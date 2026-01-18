@@ -87,6 +87,17 @@ Autorzy:
   - [Indeksy na kolumny w klauzulach WHERE i JOIN](#indeksy-na-kolumny-w-klauzulach-where-i-join)
   - [Indeksy na daty dla raportów](#indeksy-na-daty-dla-raportów)
   - [Indeksy kompozytowe](#indeksy-kompozytowe)
+- [6. Przykładowe dane testowe](#6-przykładowe-dane-testowe)
+  - [Sposób generacji danych](#sposób-generacji-danych)
+  - [Skrypty INSERT](#skrypty-insert)
+    - [Kategorie produktów i części](#kategorie-produktów-i-części)
+    - [Klienci](#klienci)
+    - [Części](#części)
+    - [Produkty](#produkty)
+    - [Skład produktów (BOM)](#skład-produktów-bom)
+    - [Parametry globalne](#parametry-globalne)
+    - [Zamówienia](#zamówienia)
+    - [Plany produkcyjne](#plany-produkcyjne)
 
 ---
 
@@ -1949,7 +1960,256 @@ CREATE INDEX IX_Products_CategoryID_Discontinued
    UPDATE STATISTICS dbo.Orders WITH FULLSCAN;
    ```
 
+---
 
+# 6. Przykładowe dane testowe
 
+## Sposób generacji danych
 
-(informacja o sposobie wygenerowania danych, uprawnienia …) -->
+Dane testowe zostały wygenerowane w celu:
+1. **Demonstracji funkcjonalności systemu** - umożliwienie testowania wszystkich procedur, funkcji, widoków i triggerów
+2. **Symulacji rzeczywistego środowiska produkcyjnego** - odzwierciedlenie typowych scenariuszy biznesowych (zamówienia, produkcja, magazyn)
+3. **Weryfikacji wydajności** - wystarczająca ilość danych do testowania indeksów i zapytań analitycznych
+
+### Metodyka generacji:
+
+- **Kategorie i parametry globalne** - ręcznie zdefiniowane wartości biznesowe (ceny robocizny, progi rabatowe)
+- **Części (Parts)** - podstawowe komponenty (śruby, deski, tkaniny) z różnymi cenami i stanami magazynowymi
+- **Produkty (Products)** - wyroby gotowe (meble, narzędzia) z zdefiniowaną strukturą BOM
+- **Klienci (Clients)** - mix firm i osób prywatnych z różnymi danymi kontaktowymi
+- **Zamówienia (Orders)** - zamówienia z różnymi statusami (realizowane, zakończone, anulowane) i datami z ostatnich 12 miesięcy
+- **Plany produkcyjne** - zarówno cykliczne (type='P') jak i wymuszone zamówieniami (type='O'), z różnymi statusami realizacji
+- **Dzienniki produkcji** - codzienne raporty z realizacji planów, zawierające ilości wyprodukowane i kontrolę jakości
+
+### Zasady spójności:
+
+- Każde zamówienie odnosi się do istniejącego klienta
+- OrderDetails zawiera tylko produkty dostępne w bazie
+- ProductParts definiuje pełny skład każdego produktu
+- Plany produkcyjne mają realistyczne daty rozpoczęcia i zakończenia
+- Stany magazynowe są dodatnie lub zerowe
+- Daty są chronologiczne (OrderDate < CompletionDate)
+
+## Skrypty INSERT
+
+### Kategorie produktów i części
+
+```SQL
+-- Kategorie produktów
+INSERT INTO dbo.ProductCategories (Name) VALUES
+('Meble biurowe'),
+('Meble domowe'),
+('Akcesoria'),
+('Narzędzia');
+
+-- Kategorie części
+INSERT INTO dbo.PartCategories (Name) VALUES
+('Drewno'),
+('Łączniki metalowe'),
+('Tkaniny'),
+('Elektronika'),
+('Chemikalia');
+```
+
+### Klienci
+
+```SQL
+INSERT INTO dbo.Clients (Name, Email, PhoneNumber, NIP, Address, PostalCode, City, Country) VALUES
+('Firma Meblowa ABC Sp. z o.o.', 'kontakt@abcmeble.pl', '+48123456789', '1234567890', 'ul. Przemysłowa 15', '00-001', 'Warszawa', 'Polska'),
+('Biuro Projektowe XYZ', 'biuro@xyz.com', '+48987654321', '0987654321', 'al. Projektowa 8', '30-002', 'Kraków', 'Polska'),
+('Jan Kowalski', 'jan.kowalski@gmail.com', '+48111222333', NULL, 'ul. Kwiatowa 3', '50-003', 'Wrocław', 'Polska'),
+('Anna Nowak', 'a.nowak@wp.pl', '+48444555666', NULL, 'os. Słoneczne 12/5', '80-004', 'Gdańsk', 'Polska'),
+('Sklep Meblowy Delta', 'sprzedaz@delta.pl', '+48777888999', '1122334455', 'ul. Handlowa 45', '90-005', 'Łódź', 'Polska'),
+('Piotr Wiśniewski', 'piotr.w@onet.pl', '+48222333444', NULL, 'ul. Leśna 7', '60-006', 'Poznań', 'Polska');
+```
+
+### Części
+
+```SQL
+INSERT INTO dbo.Parts (Name, PartCategory_ID, Quantity, Price) VALUES
+-- Drewno (PartCategory_ID = 1)
+('Deska dębowa 200x30x2cm', 1, 150, 45.00),
+('Deska sosnowa 180x25x2cm', 1, 200, 28.00),
+('Płyta MDF 120x80x1.5cm', 1, 80, 35.00),
+('Noga drewniana 75cm', 1, 120, 18.00),
+('Blat dębowy 140x80x3cm', 1, 50, 120.00),
+
+-- Łączniki metalowe (PartCategory_ID = 2)
+('Śruba M6x40mm', 2, 5000, 0.15),
+('Wkręt 4x50mm', 2, 8000, 0.08),
+('Kątownik stalowy 10cm', 2, 300, 2.50),
+('Zawias meblowy', 2, 500, 3.20),
+('Uchwyt metalowy 15cm', 2, 250, 6.50),
+
+-- Tkaniny (PartCategory_ID = 3)
+('Tkanina obiciowa szara 150x100cm', 3, 60, 45.00),
+('Skóra ekologiczna czarna 120x80cm', 3, 40, 85.00),
+('Pianka tapicerska 5cm', 3, 100, 12.00),
+
+-- Elektronika (PartCategory_ID = 4)
+('Silnik elektryczny 500W', 4, 25, 180.00),
+('Przełącznik ON/OFF', 4, 150, 8.00),
+
+-- Chemikalia (PartCategory_ID = 5)
+('Klej do drewna 1L', 5, 80, 15.00),
+('Lakier bezbarwny 0.5L', 5, 120, 28.00),
+('Olej do drewna 0.75L', 5, 90, 22.00);
+```
+
+### Produkty
+
+```SQL
+INSERT INTO dbo.Products (Name, ProductCategory_ID, Price, Quantity, WorkHours) VALUES
+-- Meble biurowe (ProductCategory_ID = 1)
+('Biurko Standard 140x80', 1, 850.00, 15, 4.5),
+('Krzesło biurowe Comfort', 1, 420.00, 30, 2.0),
+('Regał biurowy 180cm', 1, 680.00, 12, 3.5),
+
+-- Meble domowe (ProductCategory_ID = 2)
+('Stół drewniany 200x100', 2, 1250.00, 8, 6.0),
+('Krzesło jadalniane Classic', 2, 320.00, 25, 1.5),
+('Komoda 4-szufladowa', 2, 890.00, 10, 5.0),
+
+-- Akcesoria (ProductCategory_ID = 3)
+('Lampka biurkowa LED', 3, 180.00, 40, 0.5),
+('Organizer na dokumenty', 3, 95.00, 50, 0.75),
+
+-- Narzędzia (ProductCategory_ID = 4)
+('Szlifierka taśmowa PRO', 4, 650.00, 5, 8.0),
+('Wiertarka akumulatorowa', 4, 380.00, 12, 3.0);
+```
+
+### Skład produktów (BOM)
+
+```SQL
+-- Biurko Standard 140x80 (Product_ID = 1)
+EXEC dbo.AddProductPart @ProductID=1, @PartID=5, @Quantity=1;  -- Blat dębowy
+EXEC dbo.AddProductPart @ProductID=1, @PartID=4, @Quantity=4;  -- Nogi drewniane
+EXEC dbo.AddProductPart @ProductID=1, @PartID=6, @Quantity=16; -- Śruby
+EXEC dbo.AddProductPart @ProductID=1, @PartID=16, @Quantity=2; -- Klej
+EXEC dbo.AddProductPart @ProductID=1, @PartID=17, @Quantity=1; -- Lakier
+
+-- Krzesło biurowe Comfort (Product_ID = 2)
+EXEC dbo.AddProductPart @ProductID=2, @PartID=4, @Quantity=1;  -- Noga (podstawa)
+EXEC dbo.AddProductPart @ProductID=2, @PartID=11, @Quantity=1; -- Tkanina obiciowa
+EXEC dbo.AddProductPart @ProductID=2, @PartID=13, @Quantity=1; -- Pianka tapicerska
+EXEC dbo.AddProductPart @ProductID=2, @PartID=6, @Quantity=8;  -- Śruby
+EXEC dbo.AddProductPart @ProductID=2, @PartID=9, @Quantity=2;  -- Zawiasy
+
+-- Stół drewniany 200x100 (Product_ID = 4)
+EXEC dbo.AddProductPart @ProductID=4, @PartID=1, @Quantity=6;  -- Deski dębowe
+EXEC dbo.AddProductPart @ProductID=4, @PartID=4, @Quantity=4;  -- Nogi
+EXEC dbo.AddProductPart @ProductID=4, @PartID=8, @Quantity=8;  -- Kątowniki
+EXEC dbo.AddProductPart @ProductID=4, @PartID=6, @Quantity=24; -- Śruby
+EXEC dbo.AddProductPart @ProductID=4, @PartID=18, @Quantity=1; -- Olej do drewna
+
+-- Krzesło jadalniane Classic (Product_ID = 5)
+EXEC dbo.AddProductPart @ProductID=5, @PartID=2, @Quantity=4;  -- Deski sosnowe (na elementy)
+EXEC dbo.AddProductPart @ProductID=5, @PartID=4, @Quantity=4;  -- Nogi
+EXEC dbo.AddProductPart @ProductID=5, @PartID=6, @Quantity=12; -- Śruby
+EXEC dbo.AddProductPart @ProductID=5, @PartID=16, @Quantity=1; -- Klej
+
+-- Szlifierka taśmowa PRO (Product_ID = 9)
+EXEC dbo.AddProductPart @ProductID=9, @PartID=14, @Quantity=1; -- Silnik elektryczny
+EXEC dbo.AddProductPart @ProductID=9, @PartID=15, @Quantity=1; -- Przełącznik
+EXEC dbo.AddProductPart @ProductID=9, @PartID=3, @Quantity=2;  -- Płyty MDF (obudowa)
+EXEC dbo.AddProductPart @ProductID=9, @PartID=6, @Quantity=20; -- Śruby
+```
+
+### Parametry globalne
+
+```SQL
+EXEC dbo.UpdateHourlyRate @NewRate = 45.00;
+EXEC dbo.UpdateDiscountThreshold @NewThreshold = 5000.00;
+EXEC dbo.UpdateDiscountStepValue @NewStep = 2.5;
+EXEC dbo.UpdateMaxDiscount @NewMax = 15.0;
+```
+
+### Zamówienia
+
+```SQL
+-- Zamówienie 1: Firma Meblowa ABC (zakończone)
+DECLARE @Order1 dbo.OrderProductType;
+INSERT INTO @Order1 VALUES (1, 5), (2, 10), (3, 3);
+EXEC dbo.AddOrder 
+    @ClientName='Firma Meblowa ABC Sp. z o.o.',
+    @OrderDate='2025-11-15',
+    @Products=@Order1;
+UPDATE dbo.Orders SET Status='Zakończone', CompletionDate='2025-12-10' WHERE ID=1;
+
+-- Zamówienie 2: Jan Kowalski (w realizacji)
+DECLARE @Order2 dbo.OrderProductType;
+INSERT INTO @Order2 VALUES (4, 1), (5, 6);
+EXEC dbo.AddOrder 
+    @ClientName='Jan Kowalski',
+    @OrderDate='2025-12-20',
+    @Products=@Order2;
+UPDATE dbo.Orders SET Status='W realizacji' WHERE ID=2;
+
+-- Zamówienie 3: Sklep Meblowy Delta (duże zamówienie z rabatem)
+DECLARE @Order3 dbo.OrderProductType;
+INSERT INTO @Order3 VALUES (1, 10), (3, 8), (7, 15);
+EXEC dbo.AddOrder 
+    @ClientName='Sklep Meblowy Delta',
+    @OrderDate='2026-01-05',
+    @Products=@Order3;
+
+-- Zamówienie 4: Anna Nowak (nowe)
+DECLARE @Order4 dbo.OrderProductType;
+INSERT INTO @Order4 VALUES (8, 5), (10, 2);
+EXEC dbo.AddOrder 
+    @ClientName='Anna Nowak',
+    @OrderDate='2026-01-15',
+    @Products=@Order4;
+```
+
+### Plany produkcyjne
+
+```SQL
+-- Plan cykliczny: Krzesła biurowe (co tydzień)
+INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
+VALUES (2, 20, '2026-01-06', '2026-01-10', 'P');
+
+-- Plan wymuszony zamówieniem 2 (stół)
+INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType, Order_ID)
+VALUES (4, 1, '2025-12-22', '2025-12-28', 'O', 2);
+
+-- Plan cykliczny: Biurka (co 2 tygodnie)
+INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
+VALUES (1, 8, '2026-01-13', '2026-01-20', 'P');
+
+-- Plan zakończony: Regały
+INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
+VALUES (3, 5, '2025-12-01', '2025-12-07', 'P');
+UPDATE dbo.ProductionPlans SET ProductionType='Z' WHERE ID=4;
+
+-- Dzienniki produkcji dla planu 4 (zakończonego)
+EXEC dbo.CreateDailyLog @ProductionPlanID=4, @Quantity=2, @QualityStatus='K';
+EXEC dbo.CreateDailyLog @ProductionPlanID=4, @Quantity=3, @QualityStatus='K';
+```
+
+### Weryfikacja danych
+
+```SQL
+-- Sprawdzenie ilości rekordów
+SELECT 'Products' AS Tabela, COUNT(*) AS Rekordy FROM dbo.Products
+UNION ALL
+SELECT 'Parts', COUNT(*) FROM dbo.Parts
+UNION ALL
+SELECT 'Clients', COUNT(*) FROM dbo.Clients
+UNION ALL
+SELECT 'Orders', COUNT(*) FROM dbo.Orders
+UNION ALL
+SELECT 'OrderDetails', COUNT(*) FROM dbo.OrderDetails
+UNION ALL
+SELECT 'ProductionPlans', COUNT(*) FROM dbo.ProductionPlans
+UNION ALL
+SELECT 'ProductParts', COUNT(*) FROM dbo.ProductParts;
+
+-- Test podstawowych widoków
+SELECT TOP 3 * FROM vw_Orders_Summary;
+SELECT TOP 3 * FROM vw_BestSellingProducts;
+SELECT * FROM vw_Stock_Products;
+```
+
+---
