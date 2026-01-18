@@ -1997,18 +1997,18 @@ Dane testowe zostały wygenerowane w celu:
 ```SQL
 -- Kategorie produktów
 INSERT INTO dbo.ProductCategories (Name) VALUES
-('Meble biurowe'),
-('Meble domowe'),
-('Akcesoria'),
-('Narzędzia');
+('Biurka'),
+('Fotele biurowe'),
+('Krzesła'),
+('Fotele gamingowe');
 
 -- Kategorie części
 INSERT INTO dbo.PartCategories (Name) VALUES
 ('Drewno'),
 ('Łączniki metalowe'),
-('Tkaniny'),
-('Elektronika'),
-('Chemikalia');
+('Tkaniny tapicerskie'),
+('Mechanizmy'),
+('Elementy regulacyjne');
 ```
 
 ### Klienci
@@ -2028,92 +2028,102 @@ INSERT INTO dbo.Clients (Name, Email, PhoneNumber, NIP, Address, PostalCode, Cit
 ```SQL
 INSERT INTO dbo.Parts (Name, PartCategory_ID, Quantity, Price) VALUES
 -- Drewno (PartCategory_ID = 1)
-('Deska dębowa 200x30x2cm', 1, 150, 45.00),
-('Deska sosnowa 180x25x2cm', 1, 200, 28.00),
-('Płyta MDF 120x80x1.5cm', 1, 80, 35.00),
-('Noga drewniana 75cm', 1, 120, 18.00),
-('Blat dębowy 140x80x3cm', 1, 50, 120.00),
+('Blat dębowy 140x80x3cm', 1, 80, 180.00),
+('Blat bukowy 120x60x2.5cm', 1, 100, 120.00),
+('Płyta laminowana 160x80x2cm', 1, 120, 95.00),
+('Noga drewniana stożkowa 72cm', 1, 200, 25.00),
+('Rama drewniana krzesła', 1, 150, 35.00),
 
 -- Łączniki metalowe (PartCategory_ID = 2)
-('Śruba M6x40mm', 2, 5000, 0.15),
-('Wkręt 4x50mm', 2, 8000, 0.08),
-('Kątownik stalowy 10cm', 2, 300, 2.50),
-('Zawias meblowy', 2, 500, 3.20),
-('Uchwyt metalowy 15cm', 2, 250, 6.50),
+('Śruba M8x50mm', 2, 5000, 0.20),
+('Wkręt meblowy 5x60mm', 2, 8000, 0.12),
+('Kątownik wzmacniający stalowy', 2, 400, 3.50),
+('Płoza metalowa krzesła', 2, 300, 18.00),
+('Podstawa krzyżakowa stalowa', 2, 200, 45.00),
 
--- Tkaniny (PartCategory_ID = 3)
-('Tkanina obiciowa szara 150x100cm', 3, 60, 45.00),
-('Skóra ekologiczna czarna 120x80cm', 3, 40, 85.00),
-('Pianka tapicerska 5cm', 3, 100, 12.00),
+-- Tkaniny tapicerskie (PartCategory_ID = 3)
+('Tkanina obiciowa mesh szara', 3, 150, 38.00),
+('Skóra ekologiczna czarna', 3, 100, 75.00),
+('Tkanina gamingowa czerwono-czarna', 3, 80, 65.00),
+('Pianka wysokoelastyczna 8cm', 3, 200, 18.00),
+('Wypełnienie siedziska', 3, 180, 12.00),
 
--- Elektronika (PartCategory_ID = 4)
-('Silnik elektryczny 500W', 4, 25, 180.00),
-('Przełącznik ON/OFF', 4, 150, 8.00),
+-- Mechanizmy (PartCategory_ID = 4)
+('Mechanizm synchroniczny fotela', 4, 120, 85.00),
+('Mechanizm podnoszenia gazowy', 4, 200, 42.00),
+('Kółka obrotowe (zestaw 5szt)', 4, 250, 28.00),
+('Podłokietniki regulowane 3D', 4, 180, 55.00),
 
--- Chemikalia (PartCategory_ID = 5)
-('Klej do drewna 1L', 5, 80, 15.00),
-('Lakier bezbarwny 0.5L', 5, 120, 28.00),
-('Olej do drewna 0.75L', 5, 90, 22.00);
+-- Elementy regulacyjne (PartCategory_ID = 5)
+('Dźwignia regulacji wysokości', 5, 300, 8.50),
+('Pokrętło regulacji pochylenia', 5, 250, 6.00),
+('Wspornik regulacji podparcia lędźwi', 5, 200, 15.00);
 ```
 
 ### Produkty
 
 ```SQL
 INSERT INTO dbo.Products (Name, ProductCategory_ID, Price, Quantity, WorkHours) VALUES
--- Meble biurowe (ProductCategory_ID = 1)
-('Biurko Standard 140x80', 1, 850.00, 15, 4.5),
-('Krzesło biurowe Comfort', 1, 420.00, 30, 2.0),
-('Regał biurowy 180cm', 1, 680.00, 12, 3.5),
+-- Biurka (ProductCategory_ID = 1)
+('Biurko Executive 140x80', 1, 1250.00, 12, 5.5),
+('Biurko Standard 120x60', 1, 850.00, 20, 4.0),
+('Biurko narożne Premium 160x120', 1, 1650.00, 8, 7.0),
 
--- Meble domowe (ProductCategory_ID = 2)
-('Stół drewniany 200x100', 2, 1250.00, 8, 6.0),
-('Krzesło jadalniane Classic', 2, 320.00, 25, 1.5),
-('Komoda 4-szufladowa', 2, 890.00, 10, 5.0),
+-- Fotele biurowe (ProductCategory_ID = 2)
+('Fotel biurowy Ergonomic Pro', 2, 980.00, 15, 3.5),
+('Fotel biurowy Manager', 2, 750.00, 25, 2.8),
+('Fotel biurowy Comfort Plus', 2, 620.00, 30, 2.5),
 
--- Akcesoria (ProductCategory_ID = 3)
-('Lampka biurkowa LED', 3, 180.00, 40, 0.5),
-('Organizer na dokumenty', 3, 95.00, 50, 0.75),
+-- Krzesła (ProductCategory_ID = 3)
+('Krzesło konferencyjne Standard', 3, 380.00, 40, 1.8),
+('Krzesło biurowe Basic', 3, 420.00, 35, 2.0),
 
--- Narzędzia (ProductCategory_ID = 4)
-('Szlifierka taśmowa PRO', 4, 650.00, 5, 8.0),
-('Wiertarka akumulatorowa', 4, 380.00, 12, 3.0);
+-- Fotele gamingowe (ProductCategory_ID = 4)
+('Fotel gamingowy Dragon X', 4, 1150.00, 10, 4.0),
+('Fotel gamingowy Storm Pro', 4, 1380.00, 8, 4.5),
+('Fotel gamingowy Racer Elite', 4, 1580.00, 6, 5.0);
 ```
 
 ### Skład produktów
 
 ```SQL
--- Biurko Standard 140x80 (Product_ID = 1)
-EXEC dbo.AddProductPart @ProductID=1, @PartID=5, @Quantity=1;  -- Blat dębowy
-EXEC dbo.AddProductPart @ProductID=1, @PartID=4, @Quantity=4;  -- Nogi drewniane
-EXEC dbo.AddProductPart @ProductID=1, @PartID=6, @Quantity=16; -- Śruby
-EXEC dbo.AddProductPart @ProductID=1, @PartID=16, @Quantity=2; -- Klej
-EXEC dbo.AddProductPart @ProductID=1, @PartID=17, @Quantity=1; -- Lakier
+-- Biurko Executive 140x80 (Product_ID = 1)
+EXEC dbo.AddProductPart @ProductID=1, @PartID=1, @Quantity=1;  -- Blat dębowy 140x80
+EXEC dbo.AddProductPart @ProductID=1, @PartID=4, @Quantity=4;  -- Nogi drewniane stożkowe
+EXEC dbo.AddProductPart @ProductID=1, @PartID=6, @Quantity=16; -- Śruby M8
+EXEC dbo.AddProductPart @ProductID=1, @PartID=8, @Quantity=4;  -- Kątowniki wzmacniające
 
--- Krzesło biurowe Comfort (Product_ID = 2)
-EXEC dbo.AddProductPart @ProductID=2, @PartID=4, @Quantity=1;  -- Noga (podstawa)
-EXEC dbo.AddProductPart @ProductID=2, @PartID=11, @Quantity=1; -- Tkanina obiciowa
-EXEC dbo.AddProductPart @ProductID=2, @PartID=13, @Quantity=1; -- Pianka tapicerska
-EXEC dbo.AddProductPart @ProductID=2, @PartID=6, @Quantity=8;  -- Śruby
-EXEC dbo.AddProductPart @ProductID=2, @PartID=9, @Quantity=2;  -- Zawiasy
+-- Biurko Standard 120x60 (Product_ID = 2)
+EXEC dbo.AddProductPart @ProductID=2, @PartID=2, @Quantity=1;  -- Blat bukowy 120x60
+EXEC dbo.AddProductPart @ProductID=2, @PartID=4, @Quantity=4;  -- Nogi drewniane
+EXEC dbo.AddProductPart @ProductID=2, @PartID=6, @Quantity=12; -- Śruby
+EXEC dbo.AddProductPart @ProductID=2, @PartID=8, @Quantity=2;  -- Kątowniki
 
--- Stół drewniany 200x100 (Product_ID = 4)
-EXEC dbo.AddProductPart @ProductID=4, @PartID=1, @Quantity=6;  -- Deski dębowe
-EXEC dbo.AddProductPart @ProductID=4, @PartID=4, @Quantity=4;  -- Nogi
-EXEC dbo.AddProductPart @ProductID=4, @PartID=8, @Quantity=8;  -- Kątowniki
-EXEC dbo.AddProductPart @ProductID=4, @PartID=6, @Quantity=24; -- Śruby
-EXEC dbo.AddProductPart @ProductID=4, @PartID=18, @Quantity=1; -- Olej do drewna
+-- Fotel biurowy Ergonomic Pro (Product_ID = 4)
+EXEC dbo.AddProductPart @ProductID=4, @PartID=11, @Quantity=2; -- Tkanina mesh
+EXEC dbo.AddProductPart @ProductID=4, @PartID=14, @Quantity=2; -- Pianka wysokoelastyczna
+EXEC dbo.AddProductPart @ProductID=4, @PartID=16, @Quantity=1; -- Mechanizm synchroniczny
+EXEC dbo.AddProductPart @ProductID=4, @PartID=17, @Quantity=1; -- Mechanizm gazowy
+EXEC dbo.AddProductPart @ProductID=4, @PartID=10, @Quantity=1; -- Podstawa krzyżakowa
+EXEC dbo.AddProductPart @ProductID=4, @PartID=18, @Quantity=1; -- Kółka obrotowe
+EXEC dbo.AddProductPart @ProductID=4, @PartID=19, @Quantity=1; -- Podłokietniki 3D
 
--- Krzesło jadalniane Classic (Product_ID = 5)
-EXEC dbo.AddProductPart @ProductID=5, @PartID=2, @Quantity=4;  -- Deski sosnowe (na elementy)
-EXEC dbo.AddProductPart @ProductID=5, @PartID=4, @Quantity=4;  -- Nogi
-EXEC dbo.AddProductPart @ProductID=5, @PartID=6, @Quantity=12; -- Śruby
-EXEC dbo.AddProductPart @ProductID=5, @PartID=16, @Quantity=1; -- Klej
+-- Krzesło konferencyjne Standard (Product_ID = 7)
+EXEC dbo.AddProductPart @ProductID=7, @PartID=5, @Quantity=1;  -- Rama drewniana
+EXEC dbo.AddProductPart @ProductID=7, @PartID=15, @Quantity=1; -- Wypełnienie siedziska
+EXEC dbo.AddProductPart @ProductID=7, @PartID=12, @Quantity=1; -- Skóra ekologiczna
+EXEC dbo.AddProductPart @ProductID=7, @PartID=9, @Quantity=4;  -- Płozy metalowe
+EXEC dbo.AddProductPart @ProductID=7, @PartID=6, @Quantity=8;  -- Śruby
 
--- Szlifierka taśmowa PRO (Product_ID = 9)
-EXEC dbo.AddProductPart @ProductID=9, @PartID=14, @Quantity=1; -- Silnik elektryczny
-EXEC dbo.AddProductPart @ProductID=9, @PartID=15, @Quantity=1; -- Przełącznik
-EXEC dbo.AddProductPart @ProductID=9, @PartID=3, @Quantity=2;  -- Płyty MDF (obudowa)
-EXEC dbo.AddProductPart @ProductID=9, @PartID=6, @Quantity=20; -- Śruby
+-- Fotel gamingowy Dragon X (Product_ID = 9)
+EXEC dbo.AddProductPart @ProductID=9, @PartID=13, @Quantity=2; -- Tkanina gamingowa
+EXEC dbo.AddProductPart @ProductID=9, @PartID=14, @Quantity=2; -- Pianka wysokoelastyczna
+EXEC dbo.AddProductPart @ProductID=9, @PartID=16, @Quantity=1; -- Mechanizm synchroniczny
+EXEC dbo.AddProductPart @ProductID=9, @PartID=17, @Quantity=1; -- Mechanizm gazowy
+EXEC dbo.AddProductPart @ProductID=9, @PartID=10, @Quantity=1; -- Podstawa krzyżakowa
+EXEC dbo.AddProductPart @ProductID=9, @PartID=18, @Quantity=1; -- Kółka obrotowe
+EXEC dbo.AddProductPart @ProductID=9, @PartID=19, @Quantity=1; -- Podłokietniki 3D
+EXEC dbo.AddProductPart @ProductID=9, @PartID=21, @Quantity=1; -- Wspornik lędźwi
 ```
 
 ### Parametry globalne
@@ -2130,7 +2140,7 @@ EXEC dbo.UpdateMaxDiscount @NewMax = 15.0;
 ```SQL
 -- Zamówienie 1: Firma Meblowa ABC (zakończone)
 DECLARE @Order1 dbo.OrderProductType;
-INSERT INTO @Order1 VALUES (1, 5), (2, 10), (3, 3);
+INSERT INTO @Order1 VALUES (1, 5), (4, 8), (7, 12);
 EXEC dbo.AddOrder 
     @ClientName='Firma Meblowa ABC Sp. z o.o.',
     @OrderDate='2025-11-15',
@@ -2139,7 +2149,7 @@ UPDATE dbo.Orders SET Status='Zakończone', CompletionDate='2025-12-10' WHERE ID
 
 -- Zamówienie 2: Jan Kowalski (w realizacji)
 DECLARE @Order2 dbo.OrderProductType;
-INSERT INTO @Order2 VALUES (4, 1), (5, 6);
+INSERT INTO @Order2 VALUES (2, 1), (5, 1);
 EXEC dbo.AddOrder 
     @ClientName='Jan Kowalski',
     @OrderDate='2025-12-20',
@@ -2148,7 +2158,7 @@ UPDATE dbo.Orders SET Status='W realizacji' WHERE ID=2;
 
 -- Zamówienie 3: Sklep Meblowy Delta (duże zamówienie z rabatem)
 DECLARE @Order3 dbo.OrderProductType;
-INSERT INTO @Order3 VALUES (1, 10), (3, 8), (7, 15);
+INSERT INTO @Order3 VALUES (1, 8), (2, 10), (9, 6), (10, 4);
 EXEC dbo.AddOrder 
     @ClientName='Sklep Meblowy Delta',
     @OrderDate='2026-01-05',
@@ -2156,7 +2166,7 @@ EXEC dbo.AddOrder
 
 -- Zamówienie 4: Anna Nowak (nowe)
 DECLARE @Order4 dbo.OrderProductType;
-INSERT INTO @Order4 VALUES (8, 5), (10, 2);
+INSERT INTO @Order4 VALUES (8, 4), (11, 2);
 EXEC dbo.AddOrder 
     @ClientName='Anna Nowak',
     @OrderDate='2026-01-15',
@@ -2168,23 +2178,23 @@ EXEC dbo.AddOrder
 ```SQL
 -- Plan cykliczny: Krzesła biurowe (co tydzień)
 INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
-VALUES (2, 20, '2026-01-06', '2026-01-10', 'P');
+VALUES (7, 20, '2026-01-06', '2026-01-10', 'P');
 
--- Plan wymuszony zamówieniem 2 (stół)
+-- Plan wymuszony zamówieniem 2 (biurko Standard)
 INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType, Order_ID)
-VALUES (4, 1, '2025-12-22', '2025-12-28', 'O', 2);
+VALUES (2, 1, '2025-12-22', '2025-12-26', 'O', 2);
 
--- Plan cykliczny: Biurka (co 2 tygodnie)
+-- Plan cykliczny: Fotele biurowe Manager (co 2 tygodnie)
 INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
-VALUES (1, 8, '2026-01-13', '2026-01-20', 'P');
+VALUES (5, 10, '2026-01-13', '2026-01-20', 'P');
 
--- Plan zakończony: Regały
+-- Plan zakończony: Fotele gamingowe Dragon X
 INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
-VALUES (3, 5, '2025-12-01', '2025-12-07', 'P');
+VALUES (9, 6, '2025-12-01', '2025-12-09', 'P');
 UPDATE dbo.ProductionPlans SET ProductionType='Z' WHERE ID=4;
 
 -- Dzienniki produkcji dla planu 4 (zakończonego)
-EXEC dbo.CreateDailyLog @ProductionPlanID=4, @Quantity=2, @QualityStatus='K';
+EXEC dbo.CreateDailyLog @ProductionPlanID=4, @Quantity=3, @QualityStatus='K';
 EXEC dbo.CreateDailyLog @ProductionPlanID=4, @Quantity=3, @QualityStatus='K';
 ```
 
@@ -2211,5 +2221,4 @@ SELECT TOP 3 * FROM vw_Orders_Summary;
 SELECT TOP 3 * FROM vw_BestSellingProducts;
 SELECT * FROM vw_Stock_Products;
 ```
-
 ---
