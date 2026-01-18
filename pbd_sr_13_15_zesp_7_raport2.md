@@ -94,7 +94,7 @@ Autorzy:
     - [Klienci](#klienci)
     - [Części](#części)
     - [Produkty](#produkty)
-    - [Skład produktów (BOM)](#skład-produktów-bom)
+    - [Skład produktów](#skład-produktów)
     - [Parametry globalne](#parametry-globalne)
     - [Zamówienia](#zamówienia)
     - [Plany produkcyjne](#plany-produkcyjne)
@@ -2079,7 +2079,7 @@ INSERT INTO dbo.Products (Name, ProductCategory_ID, Price, Quantity, WorkHours) 
 ('Wiertarka akumulatorowa', 4, 380.00, 12, 3.0);
 ```
 
-### Skład produktów (BOM)
+### Skład produktów
 
 ```SQL
 -- Biurko Standard 140x80 (Product_ID = 1)
