@@ -188,7 +188,7 @@ Autorzy:
 ## Schemat bazy danych
 
 <p align="center">
-  <img src="Projekt_bazy_v0-2025-12-13_18-13.png" alt="Diagram" width="800">
+  <img src="Projekt_bazy_v0-2026-01-18_17-53.png" alt="Diagram" width="800">
 </p>
 
 ## Opis poszczególnych tabel
