@@ -48,7 +48,7 @@ Autorzy:
     - [Plany produkcyjne (cykliczne bądź wymuszone popytem)](#plany-produkcyjne-cykliczne-bądź-wymuszone-popytem)
     - [Produkty](#produkty)
     - [Statusy zamówień](#statusy-zamówień)
-- [3. Widoki, procedury i funkcje](#3-widoki-procedury-i-funkcje)
+- [3. Widoki, procedury, funkcje i triggery](#3-widoki-procedury-funkcje-i-triggery)
   - [Widoki](#widoki)
     - [Podsumowanie finansowe zamówień](#podsumowanie-finansowe-zamówień)
     - [Raport bestsellerów](#raport-bestsellerów)
@@ -69,12 +69,15 @@ Autorzy:
     - [Procedura: Dodaj kategorię](#procedura-dodaj-kategorię)
     - [Procedura: Rejestracja klienta](#procedura-rejestracja-klienta)
     - [Procedura: Zarządzanie dniami wolnymi](#procedura-zarządzanie-dniami-wolnymi)
-    - [Procedura: Definicja składu produktu](#procedura-definicja-skladu-produktu)
+    - [Procedura: Definicja składu produktu](#procedura-definicja-składu-produktu)
     - [Procedura: Złóż zamówienie](#procedura-złóż-zamówienie)
     - [Funkcja: Oblicz datę zakończenia](#funkcja-oblicz-datę-zakończenia)
     - [Procedura: Dziennik produkcji](#procedura-dziennik-produkcji)
     - [Procedura: Wycofanie produktu](#procedura-wycofanie-produktu)
     - [Procedury: Konfiguracja parametrów globalnych](#procedury-konfiguracja-parametrów-globalnych)
+  - [Triggery](#triggery)
+    - [Walidacja przejść statusów planu produkcyjnego](#walidacja-przejść-statusów-planu-produkcyjnego)
+    - [Walidacja dostępności części przy tworzeniu planu produkcyjnego](#walidacja-dostępności-części-przy-tworzeniu-planu-produkcyjnego)
 - [4. Role i Uprawnienia](#4-role-i-uprawnienia)
   - [Model uprawnień](#model-uprawnień)
   - [Utworzenie ról i przypisanie uprawnień](#utworzenie-ról-i-przypisanie-uprawnień)
@@ -701,7 +704,7 @@ CREATE TABLE dbo.Status (
 |   Atrybut 3    |     |            | -->
 
 
-# 3. Widoki, procedury i funkcje
+# 3. Widoki, procedury, funkcje i triggery
 
 ## Widoki
 
@@ -1561,6 +1564,105 @@ Zestaw procedur administracyjnych służących do zarządzania tabelą `Paramete
 * **`dbo.UpdateDiscountThreshold`:** Ustawia minimalną kwotę zamówienia, od której naliczany jest rabat.
 * **`dbo.UpdateDiscountStepValue`:** Określa, o ile procent rośnie rabat za każde przekroczenie progu kwotowego.
 * **`dbo.UpdateMaxDiscount`:** Definiuje górny limit możliwego do uzyskania rabatu (bezpiecznik finansowy).
+
+## Triggery
+
+Triggery uzupełniają procedury, działając automatycznie przy każdej operacji DML (INSERT/UPDATE/DELETE). Są potrzebne do:
+- **Walidacji złożonej logiki biznesowej** (trudnej do wyrażenia w constraint)
+- **Automatycznych aktualizacji** (bez potrzeby pamiętania o wywołaniu procedury)
+- **Zachowania spójności danych** (nawet przy bezpośrednich operacjach SQL)
+
+### Walidacja przejść statusów planu produkcyjnego
+
+**Cel:** Zapobieganie nieprawidłowym zmianom statusu (np. z 'Zakończony' na 'W trakcie').
+
+**Dlaczego trigger?** Constraint CHECK nie może sprawdzać poprzedniej wartości, a procedury nie zadziałają przy bezpośrednim UPDATE.
+
+```sql
+-- Trigger walidujący przejścia statusów w planach produkcyjnych
+CREATE TRIGGER trg_ProductionPlans_ValidateStatusTransition
+ON dbo.ProductionPlans
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Sprawdzenie niedozwolonych przejść statusów
+    -- P = Planowany, O = W trakcie, Z = Zakończony, X = Anulowany
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN deleted d ON i.ID = d.ID
+        WHERE i.ProductionType != d.ProductionType
+          AND (
+              -- Nie można wrócić z 'Zakończony' do 'W trakcie' lub 'Planowany'
+              (d.ProductionType = 'Z' AND i.ProductionType IN ('P', 'O'))
+              OR
+              -- Nie można zmienić 'Zakończony' na 'Anulowany'
+              (d.ProductionType = 'Z' AND i.ProductionType = 'X')
+              OR
+              -- Nie można zmienić 'Anulowany' na cokolwiek innego
+              (d.ProductionType = 'X' AND i.ProductionType != 'X')
+          )
+    )
+    BEGIN
+        RAISERROR('Niedozwolone przejście statusu planu produkcyjnego!', 16, 1);
+        ROLLBACK TRANSACTION;
+    END
+END;
+```
+
+### Walidacja dostępności części przy tworzeniu planu produkcyjnego
+
+**Cel:** Ostrzeżenie, jeśli plan produkcyjny wymaga więcej części niż jest na magazynie.
+
+**Dlaczego trigger?** Procedura `CreateProductionPlan` może to sprawdzać, ale trigger zapewnia ochronę przy bezpośrednim INSERT.
+
+```sql
+-- Trigger sprawdzający dostępność części przy nowym planie produkcyjnym
+CREATE TRIGGER trg_ProductionPlans_CheckPartsAvailability
+ON dbo.ProductionPlans
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Sprawdzenie czy są wymagane części dla produktu
+    DECLARE @MissingParts TABLE (
+        PlanID INT,
+        ProductName VARCHAR(255),
+        PartName VARCHAR(255),
+        Required INT,
+        Available INT
+    );
+    
+    INSERT INTO @MissingParts
+    SELECT 
+        i.ID AS PlanID,
+        p.Name AS ProductName,
+        pt.Name AS PartName,
+        pp.Quantity * i.Quantity AS Required,
+        pt.Quantity AS Available
+    FROM inserted i
+    JOIN dbo.Products p ON i.Product_ID = p.ID
+    JOIN dbo.ProductParts pp ON p.ID = pp.Product_ID
+    JOIN dbo.Parts pt ON pp.Part_ID = pt.ID
+    WHERE pt.Quantity < (pp.Quantity * i.Quantity);
+    
+    -- Jeśli są braki, wygeneruj ostrzeżenie
+    IF EXISTS (SELECT 1 FROM @MissingParts)
+    BEGIN
+        DECLARE @Message NVARCHAR(500);
+        SELECT TOP 1 @Message = 
+            'OSTRZEŻENIE: Brak części "' + PartName + '" dla planu ID ' + 
+            CAST(PlanID AS VARCHAR) + '. Potrzeba: ' + CAST(Required AS VARCHAR) + 
+            ', dostępne: ' + CAST(Available AS VARCHAR)
+        FROM @MissingParts;
+        
+        PRINT @Message;
+    END
+END;
+```
 
 # 4. Role i Uprawnienia
 
