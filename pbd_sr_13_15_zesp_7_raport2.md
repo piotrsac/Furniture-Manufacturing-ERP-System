@@ -205,7 +205,8 @@ CREATE TABLE dbo.Categories (
 );
 ```
 
-- tabela pozwalająca przypisać kategorię danego produktu (np. jeśli dany produkt to krzesło to należy do kategorii "meble")
+* **Opis tabeli:** Tabela słownikowa służąca do kategoryzacji asortymentu (np. meble, akcesoria). Umożliwia logiczne grupowanie produktów w raportach i analizach sprzedaży.
+* **Klucz główny:** `ID` (klucz sztuczny/surrogate key).
 
 ### Klienci
 
@@ -237,13 +238,15 @@ CREATE TABLE dbo.Clients (
 );
 ```
 
-- tabela zawierająca dane klientów składających zamówienia(nazwę klienta, dane kontaktowe- nr telefonu + email opcjonalnie, NIP - opcjonalnie, dane adresowe oraz typ klienta- 'I' jeśli to klient indywidualny, 'F' jeśli to firma)
-- dla constrainta `CK_Client_EmailValid` ze względu na brak obsługi wyrażeń regularnych (Regex) w standardowych constraintach SQL Server, zastosowano kombinację funkcji tekstowych do weryfikacji formatu e-maila:
-1. `Email NOT LIKE '% %'` – adres nie może zawierać spacji.
-2. `LEN... - LEN(REPLACE...) = 1` – adres musi zawierać dokładnie jeden znak `@`.
-3. `PATINDEX` – sprawdza strukturę: ciąg znaków -> `@` -> ciąg znaków -> `.` -> ciąg znaków.
-4. `LEN(RIGHT...) >= 2` – weryfikuje, czy domena najwyższego poziomu (np. .pl, .com) ma co najmniej 2 znaki.
-- więzy `CK_Clients_AtLeastOneContact` realizują wymaganie biznesowe mówiące, że z każdym klientem musi być możliwy kontakt. System nie pozwala na dodanie klienta, który nie ma podanego ani adresu e-mail, ani numeru telefonu. Pola te mogą być NULL-ami, ale nie oba jednocześnie.
+* **Opis tabeli:** Centralna baza kontrahentów zawierająca dane klientów indywidualnych oraz firmowych. Przechowuje informacje kontaktowe, adresowe oraz identyfikatory podatkowe (NIP).
+* **Więzy integralności (Constraints):**
+  * `CK_Clients_ClientType`: Ogranicza typ klienta do dwóch wartości: `'F'` (Firma) lub `'I'` (Indywidualny).
+  * `CK_Clients_AtLeastOneContact`: Realizuje regułę biznesową wymagającą co najmniej jednej formy kontaktu. Rekord nie zostanie zapisany, jeśli zarówno `Email`, jak i `PhoneNumber` są puste (NULL).
+  * `CK_Clients_EmailValid`: Złożony warunek sprawdzający poprawność adresu e-mail bez użycia RegEx (ograniczenie silnika SQL Server w standardowych constraintach). Weryfikuje:
+    1. Brak spacji w adresie (`NOT LIKE '% %'`).
+    2. Obecność dokładnie jednego znaku `@` (poprzez porównanie długości ciągu przed i po usunięciu znaku).
+    3. Poprawną strukturę znaków (wymaga sekwencji: ciąg -> `@` -> ciąg -> `.` -> ciąg).
+    4. Długość domeny najwyższego poziomu (np. .pl, .com) wynoszącą minimum 2 znaki.
 
 ### Dni bez pracy/produkcji
 
@@ -258,7 +261,9 @@ CREATE TABLE dbo.DaysOff (
 );
 ```
 
-- tabela zawierająca przedziały czasowe, w których nie odbywała się produkcja (dni wolne lub przerwy techniczne spowodowane awarią) wraz z krótkim opisem przyczyny zawieszenia produkcji
+* **Opis tabeli:** Ewidencja przerw w harmonogramie pracy zakładu. Służy do rejestrowania dni wolnych, świąt oraz przestojów technicznych, co jest kluczowe dla poprawnego planowania mocy przerobowych.
+* **Więzy integralności (Constraints):**
+  * `CK_DaysOff_StartDateBeforeEndDate`: Zabezpiecza spójność logiczną dat – data rozpoczęcia przerwy musi być wcześniejsza lub równa dacie jej zakończenia.
 
 ### Szczegóły zamówienia
 
@@ -282,7 +287,10 @@ CREATE TABLE dbo.OrderDetails (
 );
 ```
 
-- tabela łącznikowa pomiędzy produktami a zamówieniami, zawiera informacje na temat ilości zamawianego produktu w danym zamówieniu oraz o cenie jednostkowej tego produktu
+* **Opis tabeli:** Tabela asocjacyjna łącząca zamówienia z produktami. Przechowuje informacje o historycznym stanie transakcji – konkretną ilość zamówionego towaru oraz cenę jednostkową obowiązującą w momencie zakupu (niezależną od późniejszych zmian w cenniku).
+* **Więzy integralności (Constraints):**
+  * `CK_OrderDetails_QuantityNotNegative`: Blokuje wprowadzenie ujemnej ilości towaru.
+  * `CK_OrderDetails_UnitPriceOverZero`: Cena sprzedaży musi być większa od zera.
 
 ### Zamówienia
 
@@ -292,8 +300,8 @@ CREATE TABLE dbo.Orders (
     Client_ID int  NOT NULL,
     OrderDate date  NOT NULL,
     EndDate date  NOT NULL,
-    Discount decimal(3,2)  NOT NULL DEFAULT 0,
     Status_ID int  NOT NULL,
+    Discount  AS [dbo].[ObliczZnizke]([dbo].[PobierzWartoscKoszyka]([ID])),
     CONSTRAINT CK_Orders_EndDateAfterOrderDate CHECK (EndDate >= OrderDate),
     CONSTRAINT PK_Orders PRIMARY KEY CLUSTERED (ID),
 
@@ -306,7 +314,9 @@ CREATE TABLE dbo.Orders (
 );
 ```
 
-- tabela zawierająca informacje na temat zamówień (nazwa klienta zamawiającego, datę zamówienia, datę zakończenia zamówienia - skompletowane zamówienie przygotowane do wysyłki, status zamówienia- "w trakcie produkcji", "skończone" oraz rabat jednostkowy przyznawany do zamówienia)
+* **Opis tabeli:** Tabela nagłówkowa zamówień, przechowująca informacje o kliencie, datach realizacji, statusie oraz przyznanym rabacie.
+* **Więzy integralności (Constraints):**
+  * `CK_Orders_EndDateAfterOrderDate`: Data zakończenia (realizacji) zamówienia nie może być wcześniejsza niż data jego złożenia.
 
 ### Kategorie części
 
@@ -318,7 +328,7 @@ CREATE TABLE dbo.PartTypes (
 );
 ```
 
-- tabela pozwalająca przypisać kategorię danej częsci (np. jeśli dana część to śruba należy do kategorii "metal")
+* **Opis tabeli:** Tabela słownikowa klasyfikująca rodzaje materiałów i półproduktów (np. metal, drewno, plastik). Ułatwia zarządzanie magazynem surowców.
 
 ### Części
 
@@ -340,7 +350,10 @@ CREATE TABLE dbo.Parts (
 );
 ```
 
-- tabela zaierająca informacje na temat części (nazwę danej części, połączenie z kategorią do której należy, cenę danej części, moc przerobową - ile części danego typu jesteśmy w stanie wyprodukować jednego dnia, ilość jaka obecnie jest w magazynie)
+* **Opis tabeli:** Magazyn surowców i półproduktów. Tabela przechowuje aktualny stan magazynowy, cenę zakupu części oraz informacje o mocach przerobowych (ile danych części można przetworzyć/przyjąć).
+* **Więzy integralności (Constraints):**
+  * `CK_Parts_QuantityNotNegative`: Stan magazynowy nie może być ujemny.
+  * `CK_Parts_PriceOverZero`: Cena zakupu części musi być dodatnia.
 
 ### Globalne parametry
 ```SQL
@@ -354,8 +367,9 @@ CREATE TABLE dbo.Parameters (
 );
 ```
 
-- tabela jedno-wierszowa (singleton) pełniąca rolę globalnej konfiguracji systemu - przechowuje kluczowe zmienne sterujące logiką biznesową, wykorzystywane przez funkcje obliczające ceny i rabaty
-- constraint `CK_Parameters_Values` pełni rolę bezpiecznika dla logiki biznesowej systemu. Blokuje możliwość wprowadzenia ujemnej marży (`Margin`) oraz ujemnego skoku rabatowego (`DiscountStepValue`). Dzięki temu zapobiegamy sytuacjom, w których system mógłby wyliczać błędne, ujemne ceny sprzedaży lub naliczać "odwrotne" rabaty dopłacające klientowi.
+* **Opis tabeli:** Tabela jedno-wierszowa (singleton) pełniąca rolę globalnej konfiguracji systemu. Przechowuje kluczowe zmienne sterujące logiką biznesową, wykorzystywane przez funkcje obliczające ceny i rabaty.
+* **Więzy integralności (Constraints):**
+  * `CK_Parameters_Values`: Pełni rolę bezpiecznika dla logiki biznesowej. Blokuje możliwość wprowadzenia ujemnej marży (`Margin`) oraz ujemnego skoku rabatowego. Zapobiega to błędom w wyliczeniach cen sprzedaży i naliczaniu "odwrotnych" rabatów.
 
 ### Części danego produktu (łącznikowa)
 
@@ -376,7 +390,9 @@ CREATE TABLE dbo.ProductParts (
 );
 ```
 
-- tabela łącznikowa pomiędzy produktem a częściami z jakich się składa, zawiera informację ile części danego typu jest potrzebne do złożenia danego produktu
+* **Opis tabeli:** Tabela definiująca strukturę materiałową produktu. Określa, jakie części i w jakiej ilości są niezbędne do wytworzenia jednej sztuki produktu gotowego.
+* **Więzy integralności (Constraints):**
+  * `CK_ProductParts_QuantityNotNegative`: Ilość wymaganych części nie może być ujemna.
 
 ### Zarezerwowanie produkowanych rzeczy do konkretnego zamówienia
 
@@ -398,7 +414,9 @@ CREATE TABLE ProductionAllocations (
 );
 ```
 
-- tabela pozwalająca na zarezerwowanie produktów będących w trakcie produkcji do konkretnego zamówienia (z danego planu produkcji możemy zarezerwować konkretną ilość, którą wykorzystamy do danego zamówienia)
+* **Opis tabeli:** Tabela łącząca plany produkcyjne z konkretnymi pozycjami zamówień. Pozwala na "twardą rezerwację" towaru będącego jeszcze w procesie produkcji pod konkretne zamówienie klienta.
+* **Więzy integralności (Constraints):**
+  * `CK_ProductionAllocations_QuantityAllocatedNotNegative`: Ilość alokowanego towaru musi być nieujemna.
 
 ### Dzienne sprawozdanie z wykonywania planu produkcyjnego
 
@@ -420,7 +438,10 @@ CREATE TABLE ProductionDailyLog (
 );
 ```
 
-- tabela pozwalająca uzyskać informacje na temat planów produkcyjnych w danym dniu (dla konkretnego planu produkcyjnego w danym dniu zawiera informację o ilości produktu, którą udało się wyprodukować, informację o tym czy produkcja się udała lub jeśli się nie udała to powód- zapisane w DailyLog (oraz w QualityStatus sam efekt końcowy - 'K' udana produkcja, 'F' nie udana produkcja)
+* **Opis tabeli:** Rejestr postępów prac, służący do monitorowania wykonania planu. Przechowuje informacje o ilości wyprodukowanej w danym dniu oraz o kontroli jakości.
+* **Więzy integralności (Constraints):**
+  * `CK_ProductionDailyLog_QualityStatus`: Pole przyjmuje tylko dwie wartości: `'K'` (Kompletne/Dobra jakość) lub `'F'` (Fail/Odrzut produkcyjny).
+  * `CK_ProductionDailyLog_QuantityNotNegative`: Ilość wyprodukowana nie może być ujemna.
 
 ### Plany produkcyjne (cykliczne bądź wymuszone popytem)
 
@@ -445,7 +466,10 @@ CREATE TABLE dbo.ProductionPlans (
 );
 ```
 
-- tabela zaplanowanych produkcji pozwalająca sprawdzić dostępność danego produktu na konkretny dzień, zawiera informacje o każdej produkcji (produkt i jego ilość produkowanych w danej produkcji, status produkcji -'R'- zrealizowane, 'P'- w trakcie, datę zakończenia danej produkcji, typ produkcji - czy zamowienie jest cykliczne(wypełnianie magazynu tak żeby produkty byly dostepne) - 'C', czy zamowienie jest robione pod zamowienie (klient zamowil ale brakuje w magazynie ) - 'O')
+* **Opis tabeli:** Harmonogram zleceń produkcyjnych. Określa co, ile i na kiedy ma zostać wyprodukowane, wraz z oznaczeniem typu zlecenia.
+* **Więzy integralności (Constraints):**
+  * `CK_ProductionPlans_ProductionType`: Rozróżnia dwa tryby produkcji: `'C'` (Cykliczna/Na magazyn) oraz `'O'` (On-demand/Pod konkretne zamówienie, gdy brakuje towaru).
+  * `CK_ProductionPlans_QuantityNotNegative`: Planowana ilość musi być nieujemna.
 
 ### Produkty
 
@@ -454,11 +478,11 @@ CREATE TABLE dbo.Products (
     ID int  NOT NULL IDENTITY,
     Name nvarchar(50)  NOT NULL,
     Category_ID int  NOT NULL,
-    Price decimal(10,2)  NOT NULL,
     Quantity int  NOT NULL DEFAULT 0,
-    ProductionCost decimal(10,2)  NOT NULL,
     AssemblyCapacity int  NOT NULL DEFAULT 0,
     Discontinued bit  NOT NULL DEFAULT 0,
+    Productioncost   AS [dbo].[ObliczKosztProdukcji]([ID]),
+    Price            AS [dbo].[ObliczCeneSprzedazy]([ID]),
     CONSTRAINT QuantityNotNegative CHECK (Quantity >= 0),
     CONSTRAINT AssemblyCapacityNotNegative CHECK (AssemblyCapacity >= 0),
     CONSTRAINT PK_Products PRIMARY KEY CLUSTERED (ID),
@@ -469,8 +493,10 @@ CREATE TABLE dbo.Products (
 );
 ```
 
-- tabela zawierająca informacje na temat produktów (nazwę, kategorię do jakiej należy, ilość jaka obecnie jest w magazynie, moc przerobową- maksymalna ilość jaką możemy wyprodukować w ciągu jednego dnia, koszt produkcji oraz cenę)
-- kolumny ProductionCost i Price wyliczane procedurami
+* **Opis tabeli:** Główna kartoteka wyrobów gotowych. Zawiera dane o cenach, kosztach produkcji (wyliczanych), stanach magazynowych oraz maksymalnych mocach przerobowych montażu.
+* **Więzy integralności (Constraints):**
+  * `QuantityNotNegative`: Stan magazynowy produktu nie może spaść poniżej zera.
+  * `AssemblyCapacityNotNegative`: Moc przerobowa (limit produkcyjny) musi być wartością nieujemną.
 
 ### Statusy zamówień
 
@@ -482,7 +508,7 @@ CREATE TABLE dbo.Status (
 );
 ```
 
-- tabela pozwalająca określić jaki status ma konkretne zamówienie- "w trakcie kopmletowania" lub "skończone"
+* **Opis tabeli:** Słownik definiujący możliwe etapy cyklu życia zamówienia lub planu produkcyjnego (np. "w trakcie", "zakończone").
 <!-- - Opis:
 
 | Nazwa atrybutu | Typ | Opis/Uwagi |
