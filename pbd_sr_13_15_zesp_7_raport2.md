@@ -69,6 +69,7 @@ Autorzy:
     - [Procedura: Dodaj kategorię](#procedura-dodaj-kategorię)
     - [Procedura: Rejestracja klienta](#procedura-rejestracja-klienta)
     - [Procedura: Zarządzanie dniami wolnymi](#procedura-zarządzanie-dniami-wolnymi)
+    - [Procedura: Definicja składu produktu](#procedura-definicja-skladu-produktu)
     - [Procedura: Złóż zamówienie](#procedura-złóż-zamówienie)
     - [Funkcja: Oblicz datę zakończenia](#funkcja-oblicz-datę-zakończenia)
     - [Procedura: Dziennik produkcji](#procedura-dziennik-produkcji)
@@ -1208,6 +1209,21 @@ END
 
 * **Opis:** Narzędzie do zarządzania kalendarzem produkcyjnym firmy. Definiuje okresy przestoju (święta, awarie, przerwy techniczne).
 * **Logika:** Wstawia rekord do tabeli `DaysOff`. Posiada mechanizm domyślnej wartości – jeśli nie podano daty końcowej (`EndDate`), system przyjmuje, że przerwa trwa jeden dzień (równa się dacie początkowej).
+
+### Procedura: Definicja składu produktu
+
+```SQL
+CREATE PROCEDURE dbo.AddProductPart
+    @ProductID int,
+    @PartID    int,
+    @Quantity  int
+AS
+    INSERT INTO dbo.ProductParts (Product_ID, Part_ID, Quantity)
+    VALUES (@ProductID, @PartID, @Quantity);
+```
+
+* **Opis:** Procedura techniczna służąca do definiowania struktury materiałowej produktu. Umożliwia przypisanie konkretnych komponentów do wyrobu gotowego.
+* **Działanie:** Wstawia rekord do tabeli łącznikowej `ProductParts`. Określa, jaki surowiec (identyfikowany przez `PartID`) i w jakiej ilości (`Quantity`) jest niezbędny do wytworzenia jednej sztuki danego produktu (`ProductID`). Wielokrotne wywołanie tej procedury dla jednego produktu pozwala zbudować jego kompletną listę części.
 
 ### Procedura: Złóż zamówienie
 
