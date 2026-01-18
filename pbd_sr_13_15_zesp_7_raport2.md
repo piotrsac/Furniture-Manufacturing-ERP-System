@@ -32,6 +32,7 @@ Autorzy:
   - [Diagram przypadków użycia](#diagram-przypadków-użycia)
 - [2. Baza danych](#2-baza-danych)
   - [Schemat bazy danych](#schemat-bazy-danych)
+    - [Opis relacji (ERD)](#opis-relacji-erd)
   - [Opis poszczególnych tabel](#opis-poszczególnych-tabel)
     - [Kategorie produktów](#kategorie-produktów)
     - [Klienci](#klienci)
@@ -262,9 +263,118 @@ Autorzy:
   <img src="Projekt_bazy_v0-2026-01-18_17-53.png" alt="Diagram" width="800">
 </p>
 
-## Opis poszczególnych tabel
+### Opis relacji (ERD)
 
-[TODO: #3 Dla każdej tabeli kod DDL wraz z zaimplementowanymi war. integralności, + ewentualnie opis, np. w formie tabelki]: #
+System opiera się na modelu relacyjnym składającym się z 14 tabel połączonych kluczami obcymi. Poniżej przedstawiono kluczowe relacje między encjami:
+
+#### 1. Relacje związane z zamówieniami
+
+**Clients → Orders** (1:N)
+- Jeden klient może złożyć wiele zamówień
+- Każde zamówienie musi być przypisane do dokładnie jednego klienta
+- Klucz obcy: `Orders.Client_ID` → `Clients.ID`
+- Umożliwia śledzenie historii zakupów klienta
+
+**Orders → OrderDetails** (1:N)
+- Jedno zamówienie składa się z wielu pozycji (produktów)
+- Każda pozycja należy do dokładnie jednego zamówienia
+- Klucz obcy: `OrderDetails.Order_ID` → `Orders.ID`
+- Realizuje wzorzec "nagłówek-szczegóły" zamówienia
+
+**Products → OrderDetails** (1:N)
+- Jeden produkt może występować w wielu zamówieniach
+- Każda pozycja zamówienia dotyczy dokładnie jednego produktu
+- Klucz obcy: `OrderDetails.Product_ID` → `Products.ID`
+- Przechowuje historyczną cenę (snapshot) w momencie zamówienia
+
+**Status → Orders** (1:N)
+- Status może być przypisany do wielu zamówień
+- Każde zamówienie ma dokładnie jeden status
+- Klucz obcy: `Orders.Status_ID` → `Status.ID`
+- Śledzenie etapu realizacji zamówienia
+
+#### 2. Relacje produktów i części
+
+**Categories → Products** (1:N)
+- Jedna kategoria grupuje wiele produktów
+- Każdy produkt należy do dokładnie jednej kategorii
+- Klucz obcy: `Products.Category_ID` → `Categories.ID`
+- Klasyfikacja asortymentu
+
+**Products ↔ Parts** (M:N poprzez ProductParts)
+- Jeden produkt składa się z wielu części
+- Jedna część może być wykorzystana w wielu produktach
+- Tabela łącznikowa: `ProductParts`
+  - Klucz obcy: `ProductParts.Product_ID` → `Products.ID`
+  - Klucz obcy: `ProductParts.Part_ID` → `Parts.ID`
+  - Dodatkowy atrybut: `Quantity` (ilość części potrzebna do produkcji 1 sztuki produktu)
+- Definiuje recepturę produkcyjną (BOM)
+
+**PartTypes → Parts** (1:N)
+- Jeden typ części klasyfikuje wiele konkretnych części
+- Każda część należy do dokładnie jednego typu
+- Klucz obcy: `Parts.PartType_ID` → `PartTypes.ID`
+- Kategoryzacja surowców (np. metal, drewno, plastik)
+
+#### 3. Relacje produkcyjne
+
+**Products → ProductionPlans** (1:N)
+- Dla jednego produktu może istnieć wiele planów produkcyjnych
+- Każdy plan dotyczy dokładnie jednego produktu
+- Klucz obcy: `ProductionPlans.Product_ID` → `Products.ID`
+- Harmonogramowanie wytwarzania
+
+**Status → ProductionPlans** (1:N)
+- Status może być przypisany do wielu planów produkcyjnych
+- Każdy plan ma dokładnie jeden status
+- Klucz obcy: `ProductionPlans.Status_ID` → `Status.ID`
+- Monitorowanie postępu produkcji
+
+**ProductionPlans → ProductionDailyLog** (1:N)
+- Jeden plan produkcyjny ma wiele wpisów dziennych
+- Każdy wpis dziennika dotyczy dokładnie jednego planu
+- Klucz obcy: `ProductionDailyLog.ProductionPlan_ID` → `ProductionPlans.ID`
+- Szczegółowe raportowanie postępów
+
+#### 4. Relacje alokacji produkcji do zamówień
+
+**ProductionPlans ↔ OrderDetails** (M:N poprzez ProductionAllocations)
+- Jeden plan produkcji może być alokowany do wielu pozycji zamówień
+- Jedna pozycja zamówienia może być realizowana z wielu planów produkcji
+- Tabela łącznikowa: `ProductionAllocations`
+  - Klucz obcy: `ProductionAllocations.ProductionPlans_ID` → `ProductionPlans.ID`
+  - Klucz obcy: `ProductionAllocations.OrderDetails_ID` → `OrderDetails.ID`
+  - Dodatkowy atrybut: `QuantityAllocated` (ile sztuk z tego planu jest zarezerwowane)
+- Umożliwia "twardą rezerwację" produktów będących w trakcie produkcji pod konkretne zamówienia
+
+#### 5. Relacje konfiguracyjne
+
+**Parameters** (singleton)
+- Tabela jednowierszowa (bez relacji z innymi tabelami)
+- Przechowuje globalne parametry biznesowe (marże, progi rabatowe)
+- Wykorzystywana przez funkcje obliczeniowe
+
+**DaysOff** (słownik)
+- Niezależna tabela przechowująca dni wolne od pracy
+- Wykorzystywana przez funkcję `CalculateEndDate` do pomijania dni nieroboczych
+- Brak bezpośrednich relacji FK
+
+### Kluczowe wzorce projektowe
+
+1. **Wzorzec Master-Detail**: `Orders` ↔ `OrderDetails`
+2. **Wzorzec Many-to-Many z atrybutami**: `Products` ↔ `Parts` (przez `ProductParts`) oraz `ProductionPlans` ↔ `OrderDetails` (przez `ProductionAllocations`)
+3. **Tabele słownikowe**: `Categories`, `PartTypes`, `Status`, `DaysOff`
+4. **Singleton konfiguracyjny**: `Parameters`
+5. **Soft Delete**: Pole `Discontinued` w tabeli `Products` zamiast fizycznego usuwania
+
+### Integralność referencyjna
+
+Wszystkie relacje są egzekwowane przez ograniczenia klucza obcego (`FOREIGN KEY`), co zapewnia:
+- Niemożność usunięcia rekordów, do których istnieją odniesienia
+- Automatyczną walidację poprawności identyfikatorów
+- Spójność danych na poziomie bazy
+
+## Opis poszczególnych tabel
 
 ### Kategorie produktów
 
@@ -926,7 +1036,7 @@ EXEC dbo.AddOrder
     @City = 'Warszawa',
     @Country = 'Polska',
     @OrderDate = '2026-01-18',
-    @Products = @Koszyk;  -- Przekazanie całej tabeli!
+    @Products = @Koszyk;  -- Przekazanie całej tabeli
 ```
 
 ### Funkcja: Koszt produkcji
