@@ -815,7 +815,7 @@ GROUP BY
 
 ## Procedury/funkcje
 
-### Koszt produkcji
+### Funkcja: Koszt produkcji
 
 ```sql
 CREATE FUNCTION dbo.ObliczKosztProdukcji (@ProductId INT)
@@ -836,11 +836,10 @@ END
 ```
 
 
-* **Typ:** Funkcja skalarna.
 * **Opis:** Oblicza całkowity koszt materiałowy potrzebny do wytworzenia jednej sztuki produktu.
 * **Logika biznesowa:** Funkcja iteruje po strukturze produktu (BOM - Bill of Materials), sumując iloczyny cen zakupu części i ich wymaganej ilości. Wynik stanowi bazę do ustalania ceny sprzedaży. Zabezpieczona przed wartościami `NULL` (zwraca 0 w przypadku braku zdefiniowanych części).
 
-### Cena sprzedaży
+### Funkcja: Cena sprzedaży
 
 ```SQL
 CREATE FUNCTION dbo.ObliczCeneSprzedazy (@ProductId INT)
@@ -862,11 +861,10 @@ BEGIN
 END
 ```
 
-* **Typ:** Funkcja skalarna.
 * **Opis:** Automatycznie generuje sugerowaną cenę detaliczną produktu, zapewniając spójność marży w całym asortymencie.
 * **Logika biznesowa:** Pobiera wyliczony wcześniej koszt produkcji i narzuca na niego globalną marżę zdefiniowaną w tabeli konfiguracyjnej `Parameters`. Dzięki temu zmiana marży w jednym miejscu w systemie automatycznie aktualizuje sugerowane ceny wszystkich produktów.
 
-### Wartość koszyka
+### Funkcja: Wartość koszyka
 
 ```SQL
 CREATE FUNCTION dbo.PobierzWartoscKoszyka (@OrderId INT)
@@ -883,14 +881,13 @@ BEGIN
 END
 ```
 
-* **Typ:** Funkcja skalarna (pomocnicza).
 * **Opis:** Szybkie obliczenie wartości brutto pozycji znajdujących się w danym zamówieniu.
 * **Logika biznesowa:** Sumuje iloczyn `Ilość * Cena Jednostkowa` dla wszystkich linii danego zamówienia. Stanowi punkt wyjścia do obliczeń rabatowych.
 
-### Algorytm rabatowy
+### Funkcja: Algorytm rabatowy
 
 ```SQL
-CREATE OR ALTER FUNCTION dbo.ObliczZnizke (@WartoscZamowienia DECIMAL(18, 2))
+CREATE FUNCTION dbo.ObliczZnizke (@WartoscZamowienia DECIMAL(18, 2))
     RETURNS DECIMAL(4, 2)
 AS
 BEGIN
@@ -927,13 +924,403 @@ BEGIN
 END;
 ```
 
-* **Typ:** Funkcja skalarna.
 * **Opis:** Zaawansowany mechanizm wyliczania dynamicznego rabatu w zależności od wartości zamówienia.
 * **Logika biznesowa:** Implementuje progresywny system zniżek oparty na parametrach globalnych:
   * Sprawdza, czy wartość zamówienia przekracza próg minimalny (`DiscountThreshold`).
   * Za każde pełne 100 jednostek walutowych powyżej progu dolicza określony procent rabatu (`DiscountStepValue`).
   * Pilnuje, aby wyliczona zniżka nie przekroczyła ustalonego odgórnie limitu (`MaxDiscount`), chroniąc rentowność sprzedaży.
+  
+### Procedura: Dodaj kategorię
 
+```SQL
+CREATE PROCEDURE dbo.AddCategory
+    @Name nvarchar(50)
+AS
+    INSERT INTO dbo.Categories (Name)
+    VALUES (@Name);
+```
+
+* **Opis:** Prosta procedura administracyjna służąca do rozbudowy słownika kategorii produktów.
+* **Działanie:** Wstawia nowy rekord do tabeli `Categories`, przyjmując jako parametr nazwę kategorii.
+
+### Procedura: Rejestracja klienta
+
+```SQL
+CREATE PROCEDURE dbo.AddClient
+    @Name        nvarchar(50),
+    @PhoneNumber varchar(15),
+    @Address     nvarchar(50),
+    @City        nvarchar(50),
+    @Country     nvarchar(50),
+    @ClientType  char(1),          -- 'I' (Indywidualny) lub 'F' (Firma)
+    @Email       varchar(320) = NULL,
+    @NIP         varchar(10)  = NULL,
+    @PostalCode  varchar(15)  = NULL
+AS
+    INSERT INTO dbo.Clients (
+        Name, Email, PhoneNumber, NIP, Address, PostalCode, City, Country, ClientType
+    )
+    VALUES (
+        @Name, @Email, @PhoneNumber, @NIP, @Address, @PostalCode, @City, @Country, @ClientType
+    );
+```
+
+* **Opis:** Procedura służąca do wprowadzania nowych kontrahentów do systemu. Obsługuje zarówno klientów indywidualnych, jak i firmy.
+* **Logika biznesowa:** Przyjmuje zestaw danych teleadresowych. Pola opcjonalne (takie jak NIP czy Email) mogą przyjmować wartość `NULL`. Procedura jest wykorzystywana zarówno manualnie przez dział sprzedaży, jak i automatycznie przez procedurę składania zamówienia (`AddOrder`), gdy wykryty zostanie nowy klient.
+
+### Procedura: Zarządzanie dniami wolnymi
+
+```SQL
+CREATE PROCEDURE dbo.AddDayOff
+    @Name      NVARCHAR(100),
+    @StartDate DATE,
+    @EndDate   DATE = NULL
+AS
+BEGIN
+    INSERT INTO dbo.DaysOff (StartDate, EndDate, Name)
+    VALUES (@StartDate, ISNULL(@EndDate, @StartDate), @Name);
+END
+```
+
+* **Opis:** Narzędzie do zarządzania kalendarzem produkcyjnym firmy. Definiuje okresy przestoju (święta, awarie, przerwy techniczne).
+* **Logika:** Wstawia rekord do tabeli `DaysOff`. Posiada mechanizm domyślnej wartości – jeśli nie podano daty końcowej (`EndDate`), system przyjmuje, że przerwa trwa jeden dzień (równa się dacie początkowej).
+
+### Procedura: Złóż zamówienie
+
+```SQL
+CREATE   PROCEDURE dbo.AddOrder
+(
+    @ClientName NVARCHAR(50),
+    @Email VARCHAR(320) = NULL,
+    @PhoneNumber VARCHAR(15) = NULL,
+    @NIP VARCHAR(10) = NULL,
+    @Address NVARCHAR(50) = NULL,
+    @PostalCode NVARCHAR(50) = NULL,
+    @City NVARCHAR(50) = NULL,
+    @Country NVARCHAR(50) = NULL,
+    @OrderDate DATE,
+    @Products dbo.OrderProductType READONLY
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        DECLARE @ClientID INT;
+        DECLARE @OrderID INT;
+        DECLARE @TotalAmount DECIMAL(10,2);
+
+
+        -- 1. Sprawdzenie czy klient istnieje
+        -- klient identyfikowany po nazwie i emailu
+        SELECT @ClientID = ID
+        FROM Clients
+        WHERE Name = @ClientName
+          AND (Email = @Email OR @Email IS NULL);
+
+        IF @ClientID IS NULL
+        BEGIN
+            INSERT INTO Clients
+            (
+                Name, Email, PhoneNumber, NIP,
+                Address, PostalCode, City, Country, ClientType
+            )
+            VALUES
+            (
+                @ClientName,
+                @Email,
+                @PhoneNumber,
+                @NIP,
+                @Address,
+                @PostalCode,
+                @City,
+                @Country,
+                CASE
+                    WHEN @NIP IS NOT NULL AND LEN(@NIP) > 0 THEN 'F'
+                    ELSE 'I'
+                END
+            );
+
+            SET @ClientID = SCOPE_IDENTITY();
+        END
+
+        -- 2. Obliczenie wartości zamówienia (bez rabatu)
+        SELECT @TotalAmount = SUM(p.Price * op.Quantity)
+        FROM @Products op
+        JOIN Products p ON p.ID = op.Product_ID;
+
+        -- 3. Wstawienie zamówienia
+        -- Discount NIE JEST ustawiany (kolumna obliczana)
+        INSERT INTO Orders (Client_ID, OrderDate, EndDate, Status_ID)
+        VALUES (@ClientID, @OrderDate, @OrderDate, 1); -- 1 = During Production
+
+        SET @OrderID = SCOPE_IDENTITY();
+
+        -- 4. Wstawienie pozycji zamówienia
+        INSERT INTO OrderDetails (Order_ID, Product_ID, Quantity, UnitPrice)
+        SELECT
+            @OrderID,
+            p.ID,
+            op.Quantity,
+            p.Price
+        FROM @Products op
+        JOIN Products p ON p.ID = op.Product_ID;
+
+        -- 5. Obsługa magazynu i planowanie produkcji
+        DECLARE
+            @ProductID INT,
+            @Qty INT,
+            @Stock INT,
+            @Remaining INT,
+            @AssemblyCapacity INT,
+            @DaysProduction INT,
+            @PlanID INT;
+
+        DECLARE ProductCursor CURSOR FOR
+            SELECT Product_ID, Quantity FROM @Products;
+
+        OPEN ProductCursor;
+        FETCH NEXT FROM ProductCursor INTO @ProductID, @Qty;
+
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            SELECT
+                @Stock = Quantity,
+                @AssemblyCapacity = AssemblyCapacity
+            FROM Products
+            WHERE ID = @ProductID;
+
+            -- jeśli magazyn wystarcza
+            IF @Stock >= @Qty
+            BEGIN
+                UPDATE Products
+                SET Quantity = Quantity - @Qty
+                WHERE ID = @ProductID;
+
+                UPDATE Orders
+                SET EndDate = DATEADD(DAY, 1, @OrderDate)
+                WHERE ID = @OrderID;
+            END
+            ELSE
+            BEGIN
+                -- ile trzeba wyprodukować
+                SET @Remaining = @Qty - ISNULL(@Stock, 0);
+
+                -- zużycie magazynu
+                IF @Stock > 0
+                BEGIN
+                    UPDATE Products
+                    SET Quantity = 0
+                    WHERE ID = @ProductID;
+                END
+
+                -- zabezpieczenie wydajności
+                IF @AssemblyCapacity IS NULL OR @AssemblyCapacity = 0
+                    SET @AssemblyCapacity = 1;
+
+                -- ilość dni produkcji
+                SET @DaysProduction =
+                    CEILING(CAST(@Remaining AS FLOAT) / @AssemblyCapacity);
+
+                -- plan produkcji
+                INSERT INTO ProductionPlans
+                (
+                    Quantity,
+                    EndDate,
+                    Status_ID,
+                    Product_ID,
+                    ProductionType
+                )
+                VALUES
+                (
+                    @Remaining,
+                    dbo.CalculateEndDate(@OrderDate, @DaysProduction),
+                    1,      -- During Production
+                    @ProductID,
+                    'O'     -- produkcja pod zamówienie
+                );
+
+                SET @PlanID = SCOPE_IDENTITY();
+
+                -- alokacja produkcji do zamówienia
+                INSERT INTO ProductionAllocations
+                (
+                    ProductionPlans_ID,
+                    QuantityAllocated,
+                    OrderDetails_ID
+                )
+                SELECT
+                    @PlanID,
+                    @Remaining,
+                    ID
+                FROM OrderDetails
+                WHERE Order_ID = @OrderID
+                  AND Product_ID = @ProductID;
+
+                -- EndDate zamówienia = max z planów produkcji
+                UPDATE Orders
+                SET EndDate =
+                (
+                    SELECT MAX(pp.EndDate)
+                    FROM ProductionPlans pp
+                    JOIN ProductionAllocations pa
+                        ON pp.ID = pa.ProductionPlans_ID
+                    WHERE pa.OrderDetails_ID IN
+                        (SELECT ID FROM OrderDetails WHERE Order_ID = @OrderID)
+                )
+                WHERE ID = @OrderID;
+            END
+
+            FETCH NEXT FROM ProductCursor INTO @ProductID, @Qty;
+        END
+
+        CLOSE ProductCursor;
+        DEALLOCATE ProductCursor;
+
+        COMMIT TRAN;
+
+        -- 6. Zwrócenie ID zamówienia i wartości po rabacie
+        -- rabat liczony automatycznie przez kolumnę Discount
+        SELECT
+            o.ID AS Order_ID,
+            SUM(od.Quantity * od.UnitPrice) * (1 - o.Discount) AS TotalAfterDiscount
+        FROM Orders o
+        JOIN OrderDetails od ON od.Order_ID = o.ID
+        WHERE o.ID = @OrderID
+        GROUP BY o.ID, o.Discount;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRAN;
+
+        THROW;
+    END CATCH
+END
+```
+
+* **Opis:** Kluczowa procedura transakcyjna realizująca proces sprzedaży. Jest to najbardziej złożony algorytm w systemie, integrujący sprzedaż z magazynem i produkcją.
+* **Parametry:** Przyjmuje dane klienta oraz listę produktów (jako typ tabelaryczny `OrderProductType`), co pozwala na obsłużenie całego koszyka w jednym wywołaniu.
+* **Logika biznesowa:**
+  1. **Identyfikacja klienta:** Sprawdza, czy klient istnieje w bazie. Jeśli nie – automatycznie tworzy kartotekę nowego klienta.
+  2. **Rejestracja zamówienia:** Tworzy nagłówek zamówienia i wpisuje pozycje do `OrderDetails`, pobierając aktualne ceny z tabeli `Products`.
+  3. **Weryfikacja magazynu (Pętla):** Dla każdego produktu sprawdza dostępność (`Quantity`):
+     * **Towar dostępny:** Rezerwuje towar (zmniejsza stan magazynowy) i ustawia szybką datę realizacji.
+     * **Brak towaru:**
+       1. Konsumuje resztki z magazynu (jeśli są).
+       2. Oblicza brakującą ilość.
+       3. Na podstawie mocy przerobowej (`AssemblyCapacity`) wylicza potrzebny czas produkcji.
+       4. Tworzy dedykowany **Plan Produkcji** (typ `'O'` - On-demand).
+       5. Tworzy **Alokację**, przypisując przyszłą produkcję do tego konkretnego zamówienia.
+  4. **Wyliczanie terminu:** Aktualizuje datę zakończenia zamówienia (`EndDate`), przyjmując najdalszy termin z wygenerowanych planów produkcyjnych.
+  5. **Finalizacja:** Zatwierdza transakcję i zwraca ID zamówienia oraz ostateczną kwotę do zapłaty (po uwzględnieniu automatycznych rabatów).
+
+### Funkcja: Oblicz datę zakończenia
+
+```SQL
+CREATE   FUNCTION dbo.CalculateEndDate
+(
+    @StartDate DATE,
+    @ProductionDays INT
+)
+RETURNS DATE
+AS
+BEGIN
+    DECLARE @CurrentDate DATE = @StartDate;
+    DECLARE @DaysCounted INT = 0;
+
+    WHILE @DaysCounted < @ProductionDays
+    BEGIN
+        SET @CurrentDate = DATEADD(DAY, 1, @CurrentDate);
+
+        -- sprawdzenie czy dzień jest wolny
+        IF NOT EXISTS (
+            SELECT 1
+            FROM DaysOff
+            WHERE @CurrentDate BETWEEN StartDate AND EndDate
+        )
+        BEGIN
+            -- liczymy tylko dni robocze
+            SET @DaysCounted = @DaysCounted + 1;
+        END
+    END
+
+    RETURN @CurrentDate;
+END
+```
+
+* **Typ:** Funkcja skalarna.
+* **Opis:** Funkcja pomocnicza służąca do precyzyjnego planowania terminów.
+* **Logika:** Oblicza datę zakończenia prac, dodając do daty startowej określoną liczbę dni roboczych. Algorytm w pętli sprawdza każdy kolejny dzień w tabeli `DaysOff` – jeśli dzień jest wolny, nie jest wliczany do czasu realizacji. Zapewnia to realne terminy wykonania zleceń.
+
+### Procedura: Dziennik produkcji
+
+```SQL
+CREATE PROCEDURE dbo.CreateDailyLog
+    @ProductionPlanID int,
+    @DailyLog         nvarchar(100),
+    @Quantity         int,
+    @QualityStatus    char(1)
+AS
+    INSERT INTO dbo.ProductionDailyLog (ProductionPlan_ID, DailyLog, Quantity, QualityStatus)
+    VALUES (@ProductionPlanID, @DailyLog, @Quantity, @QualityStatus);
+```
+
+* **Opis:** Procedura operacyjna dla pracowników produkcji/magazynu.
+* **Działanie:** Rejestruje postęp prac nad konkretnym planem produkcyjnym. Zapisuje ilość wyprodukowaną w danym dniu, notatkę (log) oraz status kontroli jakości (`'K'` - OK, `'F'` - Błąd).
+
+### Procedura: Wycofanie produktu
+
+```SQL
+CREATE PROCEDURE dbo.DiscontinueProduct
+    @ProductID int
+AS
+    UPDATE dbo.Products
+    SET Discontinued = 1
+    WHERE ID = @ProductID;
+```
+
+* **Opis:** Procedura realizująca tzw. "miękkie usuwanie" (soft delete).
+* **Działanie:** Zamiast fizycznie usuwać rekord (co naruszyłoby więzy integralności historycznych zamówień), ustawia flagę `Discontinued` na 1. Produkt przestaje być widoczny w ofercie, ale pozostaje w historii.
+
+### Procedury: Konfiguracja parametrów globalnych
+
+```SQL
+CREATE PROCEDURE dbo.UpdateDiscountStepValue
+    @Value decimal(3, 2)
+AS
+    UPDATE dbo.Parameters SET DiscountStepValue = @Value;
+```
+
+```SQL
+CREATE PROCEDURE dbo.UpdateDiscountThreshold
+    @Value decimal(10, 2)
+AS
+    UPDATE dbo.Parameters SET DiscountThreshold = @Value;
+```
+
+```SQL
+CREATE PROCEDURE dbo.UpdateMargin
+    @Value decimal(3, 2)
+AS
+    UPDATE dbo.Parameters SET Margin = @Value;
+```
+
+```SQL
+CREATE PROCEDURE dbo.UpdateMaxDiscount
+    @Value decimal(3, 2)
+AS
+    UPDATE dbo.Parameters SET MaxDiscount = @Value;
+```
+
+Zestaw procedur administracyjnych służących do zarządzania tabelą `Parameters` (singletonem konfiguracyjnym). Umożliwiają zmianę polityki cenowej "na żywo", bez konieczności modyfikacji kodu systemu:
+
+* **`dbo.UpdateMargin`:** Zmienia globalny narzut (marżę) na produkty, co wpływa na sugerowane ceny sprzedaży.
+* **`dbo.UpdateDiscountThreshold`:** Ustawia minimalną kwotę zamówienia, od której naliczany jest rabat.
+* **`dbo.UpdateDiscountStepValue`:** Określa, o ile procent rośnie rabat za każde przekroczenie progu kwotowego.
+* **`dbo.UpdateMaxDiscount`:** Definiuje górny limit możliwego do uzyskania rabatu (bezpiecznik finansowy).
 
 # 4. Role i Uprawnienia
 
