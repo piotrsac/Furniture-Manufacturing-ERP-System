@@ -230,12 +230,12 @@ CREATE TABLE dbo.Clients (
 ### Dni bez pracy/produkcji
 
 ```SQL
-CREATE TABLE DaysOff (
+CREATE TABLE dbo.DaysOff (
     ID int  NOT NULL IDENTITY,
     StartDate date  NOT NULL,
     EndDate date  NOT NULL,
     Name nvarchar(100)  NOT NULL,
-    CONSTRAINT DaysOff_pk PRIMARY KEY  (ID)
+    CONSTRAINT DaysOff_pk PRIMARY KEY (ID)
 );
 ```
 
@@ -315,7 +315,7 @@ CREATE TABLE dbo.ProductParts (
 ### Zarezerwowanie produkowanych rzeczy do konkretnego zamówienia
 
 ```SQL
-CREATE TABLE ProductionAllocations (
+CREATE TABLE dbo.ProductionAllocations (
     ID int  NOT NULL IDENTITY,
     ProductionPlans_ID int  NOT NULL,
     QuantityAllocated int  NOT NULL,
@@ -329,7 +329,7 @@ CREATE TABLE ProductionAllocations (
 ### Dzienne sprawozdanie z wykonywania planu produkcyjnego
 
 ```SQL
-CREATE TABLE ProductionDailyLog (
+CREATE TABLE dbo.ProductionDailyLog (
     ID int  NOT NULL IDENTITY,
     ProductionPlan_ID int  NOT NULL,
     DailyLog nvarchar(50)  NOT NULL,
