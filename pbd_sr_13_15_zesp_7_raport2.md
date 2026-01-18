@@ -221,11 +221,29 @@ CREATE TABLE dbo.Clients (
     City nvarchar(50)  NOT NULL,
     Country nvarchar(50)  NOT NULL,
     ClientType char(1)  NOT NULL,
+    CONSTRAINT CK_Clients_ClientType CHECK (ClientType in ('F', 'I')),
     CONSTRAINT PK_Clients PRIMARY KEY CLUSTERED (ID)
+    CONSTRAINT CK_Clients_EmailValid
+        CHECK (
+            Email NOT LIKE '% %'
+                AND LEN(Email) - LEN(REPLACE(Email, '@', '')) = 1
+                AND PATINDEX('%_@_%._%', Email) > 0
+                AND LEN(RIGHT(Email, CHARINDEX('.', REVERSE(Email)) - 1)) >= 2
+            );
+    CONSTRAINT CK_Clients_AtLeastOneContact
+        CHECK (
+            Email IS NOT NULL OR PhoneNumber IS NOT NULL
+            );
 );
 ```
 
 - tabela zawierająca dane klientów składających zamówienia(nazwę klienta, dane kontaktowe- nr telefonu + email opcjonalnie, NIP - opcjonalnie, dane adresowe oraz typ klienta- 'I' jeśli to klient indywidualny, 'F' jeśli to firma)
+- dla constrainta `CK_Client_EmailValid` ze względu na brak obsługi wyrażeń regularnych (Regex) w standardowych constraintach SQL Server, zastosowano kombinację funkcji tekstowych do weryfikacji formatu e-maila:
+1. `Email NOT LIKE '% %'` – adres nie może zawierać spacji.
+2. `LEN... - LEN(REPLACE...) = 1` – adres musi zawierać dokładnie jeden znak `@`.
+3. `PATINDEX` – sprawdza strukturę: ciąg znaków -> `@` -> ciąg znaków -> `.` -> ciąg znaków.
+4. `LEN(RIGHT...) >= 2` – weryfikuje, czy domena najwyższego poziomu (np. .pl, .com) ma co najmniej 2 znaki.
+- więzy `CK_Clients_AtLeastOneContact` realizują wymaganie biznesowe mówiące, że z każdym klientem musi być możliwy kontakt. System nie pozwala na dodanie klienta, który nie ma podanego ani adresu e-mail, ani numeru telefonu. Pola te mogą być NULL-ami, ale nie oba jednocześnie.
 
 ### Dni bez pracy/produkcji
 
@@ -235,7 +253,8 @@ CREATE TABLE dbo.DaysOff (
     StartDate date  NOT NULL,
     EndDate date  NOT NULL,
     Name nvarchar(100)  NOT NULL,
-    CONSTRAINT DaysOff_pk PRIMARY KEY (ID)
+    CONSTRAINT CK_DaysOff_StartDateBeforeEndDate CHECK (StartDate <= EndDate),
+    CONSTRAINT DaysOff_pk PRIMARY KEY  (ID)
 );
 ```
 
@@ -245,11 +264,21 @@ CREATE TABLE dbo.DaysOff (
 
 ```SQL
 CREATE TABLE dbo.OrderDetails (
+    ID int  NOT NULL IDENTITY,
     Order_ID int  NOT NULL,
     Product_ID int  NOT NULL,
     Quantity int  NOT NULL,
     UnitPrice decimal(10,2)  NOT NULL,
-    CONSTRAINT PK_OrderDetails PRIMARY KEY CLUSTERED (Order_ID,Product_ID)
+    CONSTRAINT CK_OrderDetails_QuantityNotNegative CHECK (Quantity >= 0),
+    CONSTRAINT CK_OrderDetails_UnitPriceOverZero CHECK (UnitPrice > 0),
+    CONSTRAINT PK_OrderDetails PRIMARY KEY CLUSTERED (ID),
+
+    CONSTRAINT FK_OrderDetails_Orders
+      FOREIGN KEY (Order_ID)
+      REFERENCES dbo.Orders (ID),
+    CONSTRAINT FK_OrderDetails_Products
+      FOREIGN KEY (Product_ID)
+      REFERENCES dbo.Products (ID)
 );
 ```
 
@@ -261,11 +290,19 @@ CREATE TABLE dbo.OrderDetails (
 CREATE TABLE dbo.Orders (
     ID int  NOT NULL IDENTITY,
     Client_ID int  NOT NULL,
-    Status_ID int  NOT NULL,
     OrderDate date  NOT NULL,
     EndDate date  NOT NULL,
     Discount decimal(3,2)  NOT NULL DEFAULT 0,
-    CONSTRAINT PK_Orders PRIMARY KEY CLUSTERED (ID)
+    Status_ID int  NOT NULL,
+    CONSTRAINT CK_Orders_EndDateAfterOrderDate CHECK (EndDate >= OrderDate),
+    CONSTRAINT PK_Orders PRIMARY KEY CLUSTERED (ID),
+
+    CONSTRAINT FK_Orders_Clients
+        FOREIGN KEY (Client_ID)
+        REFERENCES dbo.Clients (ID),
+    CONSTRAINT Status_Orders
+        FOREIGN KEY (Status_ID)
+        REFERENCES dbo.Status (ID)
 );
 ```
 
@@ -293,11 +330,32 @@ CREATE TABLE dbo.Parts (
     Price decimal(10,2)  NOT NULL,
     ProductionCapacity int  NULL,
     Quantity int  NOT NULL DEFAULT 0,
-    CONSTRAINT PK_Parts PRIMARY KEY CLUSTERED (ID)
+    CONSTRAINT CK_Parts_QuantityNotNegative CHECK (Quantity >= 0),
+    CONSTRAINT CK_Parts_PriceOverZero CHECK (Price > 0),
+    CONSTRAINT PK_Parts PRIMARY KEY CLUSTERED (ID),
+    
+    CONSTRAINT FK_Parts_PartTypes
+        FOREIGN KEY (PartType_ID)
+        REFERENCES dbo.PartTypes (ID)
 );
 ```
 
-- tabela zaierająca informacje na temat części (nazwę danej części, połączenie z kategorią do której należy, cenę danej części, moc przerobową- ile części danego typu jesteśmy w stanie wyprodukować jednego dnia, ilość jaka obecnie jest w magazynie)
+- tabela zaierająca informacje na temat części (nazwę danej części, połączenie z kategorią do której należy, cenę danej części, moc przerobową - ile części danego typu jesteśmy w stanie wyprodukować jednego dnia, ilość jaka obecnie jest w magazynie)
+
+### Globalne parametry
+```SQL
+CREATE TABLE dbo.Parameters (
+    Margin decimal(3,2)  NOT NULL,
+    DiscountStepValue decimal(3,2)  NULL,
+    DiscountThreshold decimal(10,2)  NULL,
+    MaxDiscount decimal(3,2)  NULL
+    CONSTRAINT CK_Parameters_Values
+        CHECK (Margin >= 0 AND DiscountStepValue >= 0);
+);
+```
+
+- tabela jedno-wierszowa (singleton) pełniąca rolę globalnej konfiguracji systemu - przechowuje kluczowe zmienne sterujące logiką biznesową, wykorzystywane przez funkcje obliczające ceny i rabaty
+- constraint `CK_Parameters_Values` pełni rolę bezpiecznika dla logiki biznesowej systemu. Blokuje możliwość wprowadzenia ujemnej marży (`Margin`) oraz ujemnego skoku rabatowego (`DiscountStepValue`). Dzięki temu zapobiegamy sytuacjom, w których system mógłby wyliczać błędne, ujemne ceny sprzedaży lub naliczać "odwrotne" rabaty dopłacające klientowi.
 
 ### Części danego produktu (łącznikowa)
 
@@ -306,7 +364,15 @@ CREATE TABLE dbo.ProductParts (
     Product_ID int  NOT NULL,
     Part_ID int  NOT NULL,
     Quantity int  NOT NULL,
-    CONSTRAINT PK_ProductParts PRIMARY KEY CLUSTERED (Product_ID,Part_ID)
+    CONSTRAINT CK_ProductParts_QuantityNotNegative CHECK (Quantity >= 0),
+    CONSTRAINT PK_ProductParts PRIMARY KEY CLUSTERED (Product_ID,Part_ID),
+
+    CONSTRAINT FK_ProductParts_Parts
+      FOREIGN KEY (Part_ID)
+      REFERENCES dbo.Parts (ID),
+    CONSTRAINT FK_ProductParts_Products
+        FOREIGN KEY (Product_ID)
+        REFERENCES dbo.Products (ID)
 );
 ```
 
@@ -315,12 +381,20 @@ CREATE TABLE dbo.ProductParts (
 ### Zarezerwowanie produkowanych rzeczy do konkretnego zamówienia
 
 ```SQL
-CREATE TABLE dbo.ProductionAllocations (
+CREATE TABLE ProductionAllocations (
     ID int  NOT NULL IDENTITY,
     ProductionPlans_ID int  NOT NULL,
     QuantityAllocated int  NOT NULL,
-    Orders_ID int  NOT NULL,
-    CONSTRAINT ProductionAllocations_pk PRIMARY KEY  (ID)
+    OrderDetails_ID int  NOT NULL,
+    CONSTRAINT CK_ProductionAllocations_QuantityAllocatedNotNegative CHECK (QuantityAllocated >= 0),
+    CONSTRAINT ProductionAllocations_pk PRIMARY KEY  (ID),
+
+    CONSTRAINT OrderDetails_ProductionAllocations
+        FOREIGN KEY (OrderDetails_ID)
+        REFERENCES dbo.OrderDetails (ID),
+    CONSTRAINT ProductionAllocations_ProductionPlans
+        FOREIGN KEY (ProductionPlans_ID)
+        REFERENCES dbo.ProductionPlans (ID)
 );
 ```
 
@@ -329,14 +403,20 @@ CREATE TABLE dbo.ProductionAllocations (
 ### Dzienne sprawozdanie z wykonywania planu produkcyjnego
 
 ```SQL
-CREATE TABLE dbo.ProductionDailyLog (
+CREATE TABLE ProductionDailyLog (
     ID int  NOT NULL IDENTITY,
     ProductionPlan_ID int  NOT NULL,
-    DailyLog nvarchar(50)  NOT NULL,
-    Date date  NOT NULL,
+    DailyLog nvarchar(100)  NOT NULL,
+    Date date  NOT NULL DEFAULT GETDATE(),
     Quantity int  NOT NULL,
     QualityStatus char(1)  NOT NULL,
-    CONSTRAINT ProductionDailyLog_pk PRIMARY KEY  (ID)
+    CONSTRAINT CK_ProductionDailyLog_QualityStatus CHECK (QualityStatus in ('K', 'F')),
+    CONSTRAINT CK_ProductionDailyLog_QuantityNotNegative CHECK (Quantity >= 0),
+    CONSTRAINT ProductionDailyLog_pk PRIMARY KEY (ID),
+    
+    CONSTRAINT ProductionPlans_ProductionDailyLog
+        FOREIGN KEY (ProductionPlan_ID)
+        REFERENCES dbo.ProductionPlans (ID)
 );
 ```
 
@@ -349,10 +429,19 @@ CREATE TABLE dbo.ProductionPlans (
     ID int  NOT NULL IDENTITY,
     Quantity int  NOT NULL,
     EndDate date  NOT NULL,
-    Status char(1)  NOT NULL,
+    Status_ID int  NOT NULL,
     Product_ID int  NOT NULL,
     ProductionType char(1)  NOT NULL,
-    CONSTRAINT PK_ProductionPlans PRIMARY KEY CLUSTERED (ID)
+    CONSTRAINT CK_ProductionPlans_ProductionType CHECK (ProductionType in ('C', 'O')),
+    CONSTRAINT CK_ProductionPlans_QuantityNotNegative CHECK (Quantity >= 0),
+    CONSTRAINT PK_ProductionPlans PRIMARY KEY CLUSTERED (ID),
+
+    CONSTRAINT Products_ProductionPlans
+        FOREIGN KEY (Product_ID)
+        REFERENCES dbo.Products (ID),
+    CONSTRAINT Status_ProductionPlans
+        FOREIGN KEY (Status_ID)
+        REFERENCES dbo.Status (ID)
 );
 ```
 
@@ -362,25 +451,26 @@ CREATE TABLE dbo.ProductionPlans (
 
 ```SQL
 CREATE TABLE dbo.Products (
-    ID int NOT NULL IDENTITY,
-    Name nvarchar(50) NOT NULL,
-    Category_ID int NOT NULL,
-    Quantity int NOT NULL DEFAULT 0,
-    AssemblyCapacity int NULL,
+    ID int  NOT NULL IDENTITY,
+    Name nvarchar(50)  NOT NULL,
+    Category_ID int  NOT NULL,
+    Price decimal(10,2)  NOT NULL,
+    Quantity int  NOT NULL DEFAULT 0,
+    ProductionCost decimal(10,2)  NOT NULL,
+    AssemblyCapacity int  NOT NULL DEFAULT 0,
+    Discontinued bit  NOT NULL DEFAULT 0,
+    CONSTRAINT QuantityNotNegative CHECK (Quantity >= 0),
+    CONSTRAINT AssemblyCapacityNotNegative CHECK (AssemblyCapacity >= 0),
+    CONSTRAINT PK_Products PRIMARY KEY CLUSTERED (ID),
 
-    ProductionCost AS ([dbo].[ObliczKosztProdukcji]([ID])),
-    Price AS ([dbo].[ObliczKosztProdukcji]([ID]) * 1.5),
-
-    CONSTRAINT
-        PK_Products PRIMARY KEY CLUSTERED (ID),
-    CONSTRAINT
-        FK_Products_Categories FOREIGN KEY (Category_ID)
-            REFERENCES dbo.Categories(ID)
+    CONSTRAINT FK_Products_Categories
+        FOREIGN KEY (Category_ID)
+        REFERENCES dbo.Categories (ID)
 );
 ```
 
 - tabela zawierająca informacje na temat produktów (nazwę, kategorię do jakiej należy, ilość jaka obecnie jest w magazynie, moc przerobową- maksymalna ilość jaką możemy wyprodukować w ciągu jednego dnia, koszt produkcji oraz cenę)
-- kolumny ProductionCost i Price wyliczane funkcją poniżej
+- kolumny ProductionCost i Price wyliczane procedurami
 
 ### Statusy zamówień
 
@@ -393,50 +483,6 @@ CREATE TABLE dbo.Status (
 ```
 
 - tabela pozwalająca określić jaki status ma konkretne zamówienie- "w trakcie kopmletowania" lub "skończone"
-
-## Zaawansowane więzy integralności (Ograniczenia)
-
-### Zabezpieczenie parametrów finansowych (Tabela Parameters)
-
-```SQL
-ALTER TABLE Parameters
-    ADD CONSTRAINT CK_Parameters_Values
-        CHECK (Margin >= 0 AND DiscountStepValue >= 0);
-```
-
-- Opis: Constraint ten pełni rolę bezpiecznika dla logiki biznesowej systemu. Blokuje możliwość wprowadzenia ujemnej marży (`Margin`) oraz ujemnego skoku rabatowego (`DiscountStepValue`). Dzięki temu zapobiegamy sytuacjom, w których system mógłby wyliczać błędne, ujemne ceny sprzedaży lub naliczać "odwrotne" rabaty dopłacające klientowi.
-
-### Zaawansowana walidacja adresu e-mail (Tabela Clients)
-
-```SQL
-ALTER TABLE Clients
-    ADD CONSTRAINT CK_Clients_EmailValid
-        CHECK (
-            Email NOT LIKE '% %'
-                AND LEN(Email) - LEN(REPLACE(Email, '@', '')) = 1
-                AND PATINDEX('%_@_%._%', Email) > 0
-                AND LEN(RIGHT(Email, CHARINDEX('.', REVERSE(Email)) - 1)) >= 2
-            );
-```
-
-- Opis: Ze względu na brak obsługi wyrażeń regularnych (Regex) w standardowych constraintach SQL Server, zastosowano kombinację funkcji tekstowych do weryfikacji formatu e-maila:
-1. `Email NOT LIKE '% %'` – adres nie może zawierać spacji.
-2. `LEN... - LEN(REPLACE...) = 1` – adres musi zawierać dokładnie jeden znak `@`.
-3. `PATINDEX` – sprawdza strukturę: ciąg znaków -> `@` -> ciąg znaków -> `.` -> ciąg znaków.
-4. `LEN(RIGHT...) >= 2` – weryfikuje, czy domena najwyższego poziomu (np. .pl, .com) ma co najmniej 2 znaki.
-
-### Wymagalność danych kontaktowych (Tabela Clients)
-
-```SQL
-ALTER TABLE Clients
-    ADD CONSTRAINT CK_Clients_AtLeastOneContact
-        CHECK (
-            Email IS NOT NULL OR PhoneNumber IS NOT NULL
-            );
-```
-
-- Opis: Więzy te realizują wymaganie biznesowe mówiące, że z każdym klientem musi być możliwy kontakt. System nie pozwala na dodanie klienta, który nie ma podanego ani adresu e-mail, ani numeru telefonu. Pola te mogą być NULL-ami, ale nie oba jednocześnie.
-
 <!-- - Opis:
 
 | Nazwa atrybutu | Typ | Opis/Uwagi |
