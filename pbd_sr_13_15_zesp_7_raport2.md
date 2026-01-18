@@ -12,9 +12,80 @@ Autorzy:
 
 ---
 
-# 1. Wymagania i funkcje systemu
+## Spis treści
 
-##
+- [1. Wymagania i funkcje systemu](#1-wymagania-i-funkcje-systemu)
+  - [Zarządzanie produktami](#zarządzanie-produktami)
+  - [Zarządzanie magazynem](#zarządzanie-magazynem)
+  - [Planowanie produkcji](#planowanie-produkcji)
+  - [Zarządzanie zamówieniami](#zarządzanie-zamówieniami)
+  - [Raportowanie (analityka danych)](#raportowanie-analityka-danych)
+  - [Narzędzia bazy danych](#narzędzia-bazy-danych)
+  - [Use cases](#use-cases)
+    - [UC1: Rejestracja produktu](#uc1-rejestracja-produktu)
+    - [UC2: Obliczenie kosztu produkcji](#uc2-obliczenie-kosztu-produkcji)
+    - [UC3: Sprawdzenie dostępności magazynowej](#uc3-sprawdzenie-dostępności-magazynowej)
+    - [UC4: Złożenie zamówienia](#uc4-złożenie-zamówienia)
+    - [UC5: Planowanie produkcji](#uc5-planowanie-produkcji)
+    - [UC6: Realizacja produkcji](#uc6-realizacja-produkcji)
+    - [UC7: Generowanie raportów](#uc7-generowanie-raportów)
+  - [Diagram przypadków użycia](#diagram-przypadków-użycia)
+- [2. Baza danych](#2-baza-danych)
+  - [Schemat bazy danych](#schemat-bazy-danych)
+  - [Opis poszczególnych tabel](#opis-poszczególnych-tabel)
+    - [Kategorie produktów](#kategorie-produktów)
+    - [Klienci](#klienci)
+    - [Dni bez pracy/produkcji](#dni-bez-pracyprodukcji)
+    - [Szczegóły zamówienia](#szczegóły-zamówienia)
+    - [Zamówienia](#zamówienia)
+    - [Kategorie części](#kategorie-części)
+    - [Części](#części)
+    - [Globalne parametry](#globalne-parametry)
+    - [Części danego produktu (łącznikowa)](#części-danego-produktu-łącznikowa)
+    - [Zarezerwowanie produkowanych rzeczy do konkretnego zamówienia](#zarezerwowanie-produkowanych-rzeczy-do-konkretnego-zamówienia)
+    - [Dzienne sprawozdanie z wykonywania planu produkcyjnego](#dzienne-sprawozdanie-z-wykonywania-planu-produkcyjnego)
+    - [Plany produkcyjne (cykliczne bądź wymuszone popytem)](#plany-produkcyjne-cykliczne-bądź-wymuszone-popytem)
+    - [Produkty](#produkty)
+    - [Statusy zamówień](#statusy-zamówień)
+- [3. Widoki, procedury i funkcje](#3-widoki-procedury-i-funkcje)
+  - [Widoki](#widoki)
+    - [Podsumowanie finansowe zamówień](#podsumowanie-finansowe-zamówień)
+    - [Raport bestsellerów](#raport-bestsellerów)
+    - [Historia zamówień klientów](#historia-zamówień-klientów)
+    - [Stan magazynowy produktów](#stan-magazynowy-produktów)
+    - [Stan magazynowy części](#stan-magazynowy-części)
+    - [Koszty produkcji - Widok Bazowy](#koszty-produkcji---widok-bazowy)
+    - [Raporty kosztów produkcji (Agregacje czasowe)](#raporty-kosztów-produkcji-agregacje-czasowe)
+    - [Plan produkcji - operacyjny](#plan-produkcji---operacyjny)
+    - [Raport planów produkcyjnych](#raport-planów-produkcyjnych)
+    - [Raport sprzedaży](#raport-sprzedaży)
+  - [Procedury/funkcje](#proceduryfunkcje)
+    - [Typ tabelaryczny: OrderProductType](#typ-tabelaryczny-orderproducttype)
+    - [Funkcja: Koszt produkcji](#funkcja-koszt-produkcji)
+    - [Funkcja: Cena sprzedaży](#funkcja-cena-sprzedaży)
+    - [Funkcja: Wartość koszyka](#funkcja-wartość-koszyka)
+    - [Funkcja: Algorytm rabatowy](#funkcja-algorytm-rabatowy)
+    - [Procedura: Dodaj kategorię](#procedura-dodaj-kategorię)
+    - [Procedura: Rejestracja klienta](#procedura-rejestracja-klienta)
+    - [Procedura: Zarządzanie dniami wolnymi](#procedura-zarządzanie-dniami-wolnymi)
+    - [Procedura: Złóż zamówienie](#procedura-złóż-zamówienie)
+    - [Funkcja: Oblicz datę zakończenia](#funkcja-oblicz-datę-zakończenia)
+    - [Procedura: Dziennik produkcji](#procedura-dziennik-produkcji)
+    - [Procedura: Wycofanie produktu](#procedura-wycofanie-produktu)
+    - [Procedury: Konfiguracja parametrów globalnych](#procedury-konfiguracja-parametrów-globalnych)
+- [4. Role i Uprawnienia](#4-role-i-uprawnienia)
+  - [Model uprawnień](#model-uprawnień)
+  - [Utworzenie ról i przypisanie uprawnień](#utworzenie-ról-i-przypisanie-uprawnień)
+  - [Przykładowi użytkownicy](#przykładowi-użytkownicy)
+- [5. Indeksy](#5-indeksy)
+  - [Indeksy na klucze obce](#indeksy-na-klucze-obce)
+  - [Indeksy na kolumny w klauzulach WHERE i JOIN](#indeksy-na-kolumny-w-klauzulach-where-i-join)
+  - [Indeksy na daty dla raportów](#indeksy-na-daty-dla-raportów)
+  - [Indeksy kompozytowe](#indeksy-kompozytowe)
+
+---
+
+# 1. Wymagania i funkcje systemu
 
 ### Zarządzanie produktami
 
@@ -356,6 +427,7 @@ CREATE TABLE dbo.Parts (
   * `CK_Parts_PriceOverZero`: Cena zakupu części musi być dodatnia.
 
 ### Globalne parametry
+
 ```SQL
 CREATE TABLE dbo.Parameters (
     Margin decimal(3,2)  NOT NULL,
@@ -814,6 +886,48 @@ GROUP BY
   * Grupuje wyniki według kategorii i produktów, co pozwala na badanie sezonowości sprzedaży oraz efektywności poszczególnych grup towarowych.
 
 ## Procedury/funkcje
+
+### Typ tabelaryczny: OrderProductType
+
+```SQL
+CREATE TYPE dbo.OrderProductType AS TABLE
+(
+    Product_ID INT NOT NULL,
+    Quantity INT NOT NULL
+);
+```
+
+* **Opis:** User-defined table type umożliwiający przekazanie listy produktów jako parametr do procedury składowanej.
+* **Zastosowanie:** Używany w procedurze `AddOrder` do obsługi całego koszyka zakupowego w jednym wywołaniu. Pozwala na przekazanie wielu produktów jednocześnie zamiast wywoływania procedury osobno dla każdego produktu.
+* **Korzyści:**
+  * **Atomowość transakcji:** Całe zamówienie (wszystkie produkty) jest przetwarzane w jednej transakcji.
+  * **Wydajność:** Znacząco szybsze niż wielokrotne wywołania procedury w pętli.
+  * **Prostota kodu klienta:** Aplikacja może przekazać tablicę produktów bez konieczności iteracji.
+  * **Spójność danych:** Gwarancja, że albo wszystkie produkty zostaną dodane do zamówienia, albo żadne (w przypadku błędu).
+
+**Przykład użycia:**
+```SQL
+-- Deklaracja zmiennej typu tabelarycznego
+DECLARE @Koszyk dbo.OrderProductType;
+
+-- Wypełnienie koszyka produktami
+INSERT INTO @Koszyk (Product_ID, Quantity)
+VALUES 
+    (1, 2),   -- Produkt ID=1, ilość=2
+    (3, 1),   -- Produkt ID=3, ilość=1
+    (7, 5);   -- Produkt ID=7, ilość=5
+
+-- Wywołanie procedury z całym koszykiem
+EXEC dbo.AddOrder
+    @ClientName = 'Jan Kowalski',
+    @Email = 'jan.kowalski@example.com',
+    @PhoneNumber = '+48123456789',
+    @Address = 'ul. Testowa 1',
+    @City = 'Warszawa',
+    @Country = 'Polska',
+    @OrderDate = '2026-01-18',
+    @Products = @Koszyk;  -- Przekazanie całej tabeli!
+```
 
 ### Funkcja: Koszt produkcji
 
@@ -1400,14 +1514,212 @@ CREATE USER [User_Magazynier] WITHOUT LOGIN;
 ALTER ROLE [Rola_Magazyn] ADD MEMBER [User_Magazynier];
 ```
 
+# 5. Indeksy
 
-<!-- ## Triggery
+Indeksy są kluczowym elementem optymalizacji wydajności bazy danych. Poprawnie zdefiniowane indeksy znacząco przyspieszają operacje odczytu, szczególnie w zapytaniach zawierających złączenia (JOIN), warunki filtrowania (WHERE) oraz sortowanie. W systemie zaimplementowano strategię indeksowania obejmującą klucze obce, kolumny często używane w wyszukiwaniach oraz pola dat wykorzystywane w raportach.
 
-(dla każdego triggera należy wkleić kod polecenia definiującego trigger wraz z komentarzem)
+## Indeksy na klucze obce
 
-```sql
--- ...
+Klucze obce są najczęściej używanymi kolumnami w operacjach JOIN. SQL Server automatycznie tworzy indeksy na kluczach głównych, ale **nie** tworzy ich na kluczach obcych, co może prowadzić do poważnych problemów wydajnościowych.
+
+```SQL
+-- Tabela: OrderDetails
+CREATE INDEX IX_OrderDetails_OrderID 
+    ON dbo.OrderDetails(Order_ID);
+
+CREATE INDEX IX_OrderDetails_ProductID 
+    ON dbo.OrderDetails(Product_ID);
+
+-- Tabela: Orders
+CREATE INDEX IX_Orders_ClientID 
+    ON dbo.Orders(Client_ID);
+
+CREATE INDEX IX_Orders_StatusID 
+    ON dbo.Orders(Status_ID);
+
+-- Tabela: Products
+CREATE INDEX IX_Products_CategoryID 
+    ON dbo.Products(Category_ID);
+
+-- Tabela: ProductParts
+CREATE INDEX IX_ProductParts_PartID 
+    ON dbo.ProductParts(Part_ID);
+-- Uwaga: Product_ID już ma indeks jako część klucza złożonego PK
+
+-- Tabela: Parts
+CREATE INDEX IX_Parts_PartTypeID 
+    ON dbo.Parts(PartType_ID);
+
+-- Tabela: ProductionPlans
+CREATE INDEX IX_ProductionPlans_ProductID 
+    ON dbo.ProductionPlans(Product_ID);
+
+CREATE INDEX IX_ProductionPlans_StatusID 
+    ON dbo.ProductionPlans(Status_ID);
+
+-- Tabela: ProductionAllocations
+CREATE INDEX IX_ProductionAllocations_ProductionPlansID 
+    ON dbo.ProductionAllocations(ProductionPlans_ID);
+
+CREATE INDEX IX_ProductionAllocations_OrderDetailsID 
+    ON dbo.ProductionAllocations(OrderDetails_ID);
+
+-- Tabela: ProductionDailyLog
+CREATE INDEX IX_ProductionDailyLog_ProductionPlanID 
+    ON dbo.ProductionDailyLog(ProductionPlan_ID);
 ```
+
+**Uzasadnienie:** Indeksy na kluczach obcych drastycznie przyspieszają operacje JOIN, które stanowią podstawę większości zapytań analitycznych i raportowych w systemie. Bez tych indeksów SQL Server musiałby wykonywać pełne skanowanie tabel przy każdym złączeniu.
+
+## Indeksy na kolumny w klauzulach WHERE i JOIN
+
+Kolumny często używane do filtrowania danych wymagają dedykowanych indeksów dla optymalnej wydajności.
+
+```SQL
+-- Nazwa klienta - często wyszukiwana podczas składania zamówień
+CREATE INDEX IX_Clients_Name 
+    ON dbo.Clients(Name);
+
+-- Email klienta - używany do identyfikacji w procedurze AddOrder
+CREATE INDEX IX_Clients_Email 
+    ON dbo.Clients(Email);
+
+-- NIP - wyszukiwanie klientów firmowych
+CREATE INDEX IX_Clients_NIP 
+    ON dbo.Clients(NIP) 
+    WHERE NIP IS NOT NULL;  -- indeks filtrowany (oszczędność miejsca)
+
+-- Typ klienta - segregacja raportów
+CREATE INDEX IX_Clients_ClientType 
+    ON dbo.Clients(ClientType);
+
+-- Status produktu (wycofany/aktywny) - filtrowanie oferty
+CREATE INDEX IX_Products_Discontinued 
+    ON dbo.Products(Discontinued);
+
+-- Typ produkcji - rozróżnienie produkcji cyklicznej i na zamówienie
+CREATE INDEX IX_ProductionPlans_ProductionType 
+    ON dbo.ProductionPlans(ProductionType);
+
+-- Status kontroli jakości w logach produkcyjnych
+CREATE INDEX IX_ProductionDailyLog_QualityStatus 
+    ON dbo.ProductionDailyLog(QualityStatus);
+```
+
+**Uzasadnienie:** Kolumny używane w warunkach WHERE są naturalnymi kandydatami na indeksy. Indeks filtrowany na `NIP` (tylko dla wartości NOT NULL) oszczędza miejsce, ponieważ nie wszyscy klienci są firmami.
+
+## Indeksy na daty dla raportów
+
+System raportowy intensywnie wykorzystuje kolumny dat do agregacji i filtrowania w różnych przedziałach czasowych (dzień, tydzień, miesiąc, kwartał, rok).
+
+```SQL
+-- Data zamówienia - podstawa raportów sprzedaży
+CREATE INDEX IX_Orders_OrderDate 
+    ON dbo.Orders(OrderDate);
+
+-- Data zakończenia zamówienia - monitoring terminowości
+CREATE INDEX IX_Orders_EndDate 
+    ON dbo.Orders(EndDate);
+
+-- Data zakończenia planu produkcji - planowanie harmonogramów
+CREATE INDEX IX_ProductionPlans_EndDate 
+    ON dbo.ProductionPlans(EndDate);
+
+-- Data wpisu w dzienniku produkcji - monitoring postępów
+CREATE INDEX IX_ProductionDailyLog_Date 
+    ON dbo.ProductionDailyLog(Date);
+
+-- Zakres dni wolnych - weryfikacja dostępności w funkcji CalculateEndDate
+CREATE INDEX IX_DaysOff_DateRange 
+    ON dbo.DaysOff(StartDate, EndDate);
+```
+
+**Uzasadnienie:** Widoki raportowe (`vw_Sales_Report`, `vw_ProductionCost_Monthly`, itp.) zawierają funkcje `YEAR()`, `MONTH()`, `DATEPART(QUARTER, ...)` oraz warunki filtrujące po zakresach dat. Indeksy na kolumnach dat umożliwiają szybkie wyszukiwanie przedziałów czasowych.
+
+## Indeksy kompozytowe
+
+Indeksy wielokolumnowe są kluczowe dla zapytań zawierających wiele warunków filtrowania lub sortowania.
+
+```SQL
+-- Orders: kombinacja klienta i daty (historia zamówień klienta)
+CREATE INDEX IX_Orders_ClientID_OrderDate 
+    ON dbo.Orders(Client_ID, OrderDate);
+
+-- Orders: status i data (monitorowanie zamówień według statusu w czasie)
+CREATE INDEX IX_Orders_StatusID_OrderDate 
+    ON dbo.Orders(Status_ID, OrderDate);
+
+-- OrderDetails: zamówienie i produkt (szybkie pobieranie pozycji)
+CREATE INDEX IX_OrderDetails_OrderID_ProductID 
+    ON dbo.OrderDetails(Order_ID, Product_ID);
+
+-- ProductionPlans: produkt i data (analiza historii produkcji produktu)
+CREATE INDEX IX_ProductionPlans_ProductID_EndDate 
+    ON dbo.ProductionPlans(Product_ID, EndDate);
+
+-- ProductionPlans: typ produkcji i data (raporty produkcji cyklicznej vs. na zamówienie)
+CREATE INDEX IX_ProductionPlans_ProductionType_EndDate 
+    ON dbo.ProductionPlans(ProductionType, EndDate);
+
+-- ProductionDailyLog: plan i data (chronologia postępów)
+CREATE INDEX IX_ProductionDailyLog_PlanID_Date 
+    ON dbo.ProductionDailyLog(ProductionPlan_ID, Date);
+
+-- Products: kategoria i stan magazynowy (raporty dostępności według kategorii)
+CREATE INDEX IX_Products_CategoryID_Quantity 
+    ON dbo.Products(Category_ID, Quantity);
+
+-- Products: kategoria i status wycofania (aktywny asortyment według kategorii)
+CREATE INDEX IX_Products_CategoryID_Discontinued 
+    ON dbo.Products(Category_ID, Discontinued) 
+    WHERE Discontinued = 0;  -- indeks filtrowany dla aktywnych produktów
+```
+
+**Uzasadnienie:** 
+- **Kolejność kolumn w indeksie jest krytyczna**: Pierwsza kolumna powinna być najbardziej selektywna lub najczęściej używana w `WHERE`.
+- Indeks `IX_Orders_ClientID_OrderDate` umożliwia szybkie pobieranie historii zamówień konkretnego klienta posortowanej chronologicznie.
+- Indeks `IX_ProductionPlans_ProductID_EndDate` wspiera widoki kosztowe, które agregują dane według produktu i czasu.
+- Indeks filtrowany `IX_Products_CategoryID_Discontinued` jest optymalizacją dla zapytań zwracających tylko produkty aktywne (90%+ wszystkich zapytań o produkty).
+
+### Zalecenia dotyczące zarządzania indeksami
+
+1. **Monitoring fragmentacji**: Indeksy powinny być regularnie przebudowywane lub reorganizowane gdy fragmentacja przekroczy 30%.
+   ```SQL
+   -- Sprawdzenie fragmentacji
+   SELECT 
+       OBJECT_NAME(ips.object_id) AS TableName,
+       i.name AS IndexName,
+       ips.avg_fragmentation_in_percent
+   FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') ips
+   JOIN sys.indexes i ON ips.object_id = i.object_id AND ips.index_id = i.index_id
+   WHERE ips.avg_fragmentation_in_percent > 30
+   ORDER BY ips.avg_fragmentation_in_percent DESC;
+   ```
+
+2. **Analiza wykorzystania indeksów**: Okresowo należy sprawdzać, które indeksy są rzeczywiście używane.
+   ```SQL
+   -- Indeksy niewykorzystywane (kandydaci do usunięcia)
+   SELECT 
+       OBJECT_NAME(i.object_id) AS TableName,
+       i.name AS IndexName,
+       ius.user_seeks,
+       ius.user_scans,
+       ius.user_updates
+   FROM sys.indexes i
+   LEFT JOIN sys.dm_db_index_usage_stats ius 
+       ON i.object_id = ius.object_id AND i.index_id = ius.index_id
+   WHERE i.type_desc = 'NONCLUSTERED'
+       AND OBJECTPROPERTY(i.object_id, 'IsUserTable') = 1
+       AND (ius.user_seeks + ius.user_scans) < ius.user_updates  -- więcej zapisów niż odczytów
+   ORDER BY (ius.user_seeks + ius.user_scans) ASC;
+   ```
+
+3. **Koszt indeksów**: Każdy indeks przyspiesza odczyt, ale spowalnia operacje `INSERT`, `UPDATE` i `DELETE`. Należy znaleźć równowagę między wydajnością odczytu a zapisem.
+
+4. **Statystyki**: SQL Server automatycznie aktualizuje statystyki, ale w systemach z intensywnym zapisem warto rozważyć ręczną aktualizację po dużych operacjach batch.
+   ```SQL
+   UPDATE STATISTICS dbo.Orders WITH FULLSCAN;
+   ```
 
 
 
