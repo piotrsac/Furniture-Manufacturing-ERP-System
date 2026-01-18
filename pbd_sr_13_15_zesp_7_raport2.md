@@ -393,33 +393,102 @@ CREATE TABLE dbo.Status (
 ```
 
 - tabela pozwalająca określić jaki status ma konkretne zamówienie- "w trakcie kopmletowania" lub "skończone"
+
+## Zaawansowane więzy integralności (Ograniczenia)
+
+### Zabezpieczenie parametrów finansowych (Tabela Parameters)
+
+```SQL
+ALTER TABLE Parameters
+    ADD CONSTRAINT CK_Parameters_Values
+        CHECK (Margin >= 0 AND DiscountStepValue >= 0);
+```
+
+- Opis: Constraint ten pełni rolę bezpiecznika dla logiki biznesowej systemu. Blokuje możliwość wprowadzenia ujemnej marży (`Margin`) oraz ujemnego skoku rabatowego (`DiscountStepValue`). Dzięki temu zapobiegamy sytuacjom, w których system mógłby wyliczać błędne, ujemne ceny sprzedaży lub naliczać "odwrotne" rabaty dopłacające klientowi.
+
+### Zaawansowana walidacja adresu e-mail (Tabela Clients)
+
+```SQL
+ALTER TABLE Clients
+    ADD CONSTRAINT CK_Clients_EmailValid
+        CHECK (
+            Email NOT LIKE '% %'
+                AND LEN(Email) - LEN(REPLACE(Email, '@', '')) = 1
+                AND PATINDEX('%_@_%._%', Email) > 0
+                AND LEN(RIGHT(Email, CHARINDEX('.', REVERSE(Email)) - 1)) >= 2
+            );
+```
+
+- Opis: Ze względu na brak obsługi wyrażeń regularnych (Regex) w standardowych constraintach SQL Server, zastosowano kombinację funkcji tekstowych do weryfikacji formatu e-maila:
+1. `Email NOT LIKE '% %'` – adres nie może zawierać spacji.
+2. `LEN... - LEN(REPLACE...) = 1` – adres musi zawierać dokładnie jeden znak `@`.
+3. `PATINDEX` – sprawdza strukturę: ciąg znaków -> `@` -> ciąg znaków -> `.` -> ciąg znaków.
+4. `LEN(RIGHT...) >= 2` – weryfikuje, czy domena najwyższego poziomu (np. .pl, .com) ma co najmniej 2 znaki.
+
+### Wymagalność danych kontaktowych (Tabela Clients)
+
+```SQL
+ALTER TABLE Clients
+    ADD CONSTRAINT CK_Clients_AtLeastOneContact
+        CHECK (
+            Email IS NOT NULL OR PhoneNumber IS NOT NULL
+            );
+```
+
+- Opis: Więzy te realizują wymaganie biznesowe mówiące, że z każdym klientem musi być możliwy kontakt. System nie pozwala na dodanie klienta, który nie ma podanego ani adresu e-mail, ani numeru telefonu. Pola te mogą być NULL-ami, ale nie oba jednocześnie.
+
 <!-- - Opis:
 
 | Nazwa atrybutu | Typ | Opis/Uwagi |
 | :------------: | :-: | :--------: | --- |
 |   Atrybut 1    |     |            |
 |   Atrybut 2    |     |            |
-|   Atrybut 3    |     |            | --> |
+|   Atrybut 3    |     |            | -->
 
-[Chyba na razie nie potrzebne?]: #
 
-<!-- # 3.  Widoki, procedury/funkcje, triggery
-
+# 3. Widoki, procedury i funkcje
 
 ## Widoki
 
-(dla każdego widoku należy wkleić kod polecenia definiującego widok wraz z komentarzem)
+### vw_OrdersSummary
 
-```sql
-create or alter view vw_abc
-as
-select a from tab1
+```SQL
+CREATE OR ALTER VIEW vw_OrdersSummary AS
+WITH CartValue AS (
+    -- KROK 1: Pobranie wartości koszyka dla każdego zamówienia
+    SELECT
+        ID AS Order_ID,
+        dbo.PobierzWartoscKoszyka(ID) AS SumValue
+    FROM Orders
+),
+DiscountPercent AS (
+    -- KROK 2: Wyliczenie procentu rabatu funkcją skalarną
+    SELECT
+        o.ID AS OrderID,
+        o.Client_ID,
+        o.OrderDate,
+        ISNULL(cv.SumValue, 0.00) AS Base,
+        dbo.ObliczZnizke(ISNULL(cv.SumValue, 0.00)) AS Discount
+    FROM Orders o
+    JOIN CartValue cv ON o.ID = cv.Order_ID
+)
+-- KROK 3: Ostateczne zestawienie finansowe
+SELECT
+    OrderID,
+    Client_ID,
+    OrderDate,
+    CAST(Base AS DECIMAL(18,2)) AS BaseValue,
+    Discount AS DiscountPercent,
+    CAST(Base * Discount AS DECIMAL(18,2)) AS DiscountValue,
+    CAST(Base * (1.00 - Discount) AS DECIMAL(18,2)) AS FinalValue
+FROM DiscountPercent;
 ```
--->
+
+- Opis: Widok agregujący dane finansowe zamówień. Oblicza wartość bazową koszyka, naliczony procent rabatu, wartość rabatu oraz ostateczną kwotę do zapłaty.
 
 ## Procedury/funkcje
 
-<!-- (dla każdej procedury/funkcji należy wkleić kod polecenia definiującego procedurę wraz z komentarzem) -->
+### ObliczKosztProdukcji
 
 ```sql
 CREATE FUNCTION dbo.ObliczKosztProdukcji (@ProductId INT)
@@ -439,7 +508,166 @@ BEGIN
 END
 ```
 
-- Opis: Funkcja obliczająca koszt produkcji danego produktu na podstawie ilości i ceny jego części
+- Opis: Funkcja obliczająca koszt produkcji danego produktu na podstawie ilości i ceny jego części.
+
+### ObliczCeneSprzedaży
+
+```SQL
+CREATE FUNCTION dbo.ObliczCeneSprzedazy (@ProductId INT)
+    RETURNS DECIMAL(10,2)
+AS
+BEGIN
+    DECLARE @KosztBazowy DECIMAL(10,2);
+    DECLARE @Mnoznik DECIMAL(10,2);
+
+    -- 1. Pobieramy czysty koszt
+    SET @KosztBazowy = dbo.ObliczKosztProdukcji(@ProductId);
+
+    -- 2. Pobieramy marżę z tabeli Parameters (np. 1.50)
+    SELECT TOP 1 @Mnoznik = Margin FROM Parameters;
+    SET @Mnoznik = ISNULL(@Mnoznik, 1.50);
+
+    -- 3. Zwracamy wynik
+    RETURN @KosztBazowy * @Mnoznik;
+END
+```
+
+- Opis: Funkcja ustala cenę na podstawie kosztu produkcji i marży z tabeli `Parameters`.
+
+### PobierzWartoscKoszyka
+
+```SQL
+CREATE FUNCTION dbo.PobierzWartoscKoszyka (@OrderId INT)
+    RETURNS DECIMAL(18, 2)
+AS
+BEGIN
+    DECLARE @Suma DECIMAL(18, 2);
+
+    SELECT @Suma = SUM(Quantity * UnitPrice)
+    FROM OrderDetails
+    WHERE Order_ID = @OrderId;
+
+    RETURN ISNULL(@Suma, 0.00);
+END
+```
+
+- Opis: Funkcja pomocnicza sumująca pozycje zamówienia.
+
+### ObliczZnizke
+
+```SQL
+CREATE OR ALTER FUNCTION dbo.ObliczZnizke (@WartoscZamowienia DECIMAL(18, 2))
+    RETURNS DECIMAL(4, 2)
+AS
+BEGIN
+    DECLARE @Prog DECIMAL(18, 2);
+    DECLARE @SkokProcent DECIMAL(4, 2);
+    DECLARE @MaxProcent DECIMAL(4, 2);
+    DECLARE @KwotaSkoku DECIMAL(18, 2) = 100.00;
+    DECLARE @WyliczonaZnizka DECIMAL(4, 2);
+
+    -- Pobieramy ustawienia z tabeli Parameters
+    SELECT TOP 1
+        @Prog = DiscountThreshold,
+        @SkokProcent = DiscountStepValue,
+        @MaxProcent = MaxDiscount
+    FROM Parameters;
+
+    SET @Prog = ISNULL(@Prog, 999999.00);
+    SET @MaxProcent = ISNULL(@MaxProcent, 0.00);
+
+    -- Jeśli kwota <= próg, brak zniżki
+    IF @WartoscZamowienia <= @Prog
+        RETURN 0.00;
+
+    -- Obliczenia skokowe
+    DECLARE @Nadwyzka DECIMAL(18, 2) = @WartoscZamowienia - @Prog;
+    DECLARE @IloscKrokow INT = CAST(CEILING(@Nadwyzka / @KwotaSkoku) AS INT)
+    SET @WyliczonaZnizka = @IloscKrokow * @SkokProcent;
+
+    -- Blokada MAX
+    IF @WyliczonaZnizka > @MaxProcent
+        SET @WyliczonaZnizka = @MaxProcent;
+
+    RETURN @WyliczonaZnizka;
+END;
+```
+
+- Opis: Funkcja oblicza rabat w zależności od wartości zamówienia (logika progowa).
+
+
+# 4. Role i Uprawnienia
+
+Zastosowano model **Role-Based Access Control (RBAC)**.
+
+### Definicja Ról
+
+```SQL
+-- Rola dla Zarządu i Analityków (tylko podgląd raportów)
+CREATE ROLE [Rola_Zarzad];
+
+-- Rola dla Działu Sprzedaży (obsługa klientów i zamówień)
+CREATE ROLE [Rola_Sprzedaz];
+
+-- Rola dla Planisty Produkcji (planowanie, definicja produktów)
+CREATE ROLE [Rola_Planista];
+
+-- Rola dla Magazyniera / Pracownika Produkcji (realizacja, stany magazynowe)
+CREATE ROLE [Rola_Magazyn];
+```
+
+### Przypisanie uprawnień
+
+```SQL
+-- 1. Zarząd: tylko odczyt
+GRANT SELECT ON SCHEMA::dbo TO [Rola_Zarzad];
+
+-- 2. Dział Sprzedaży: Klienci i Zamówienia (Pełny dostęp)
+GRANT SELECT, INSERT, UPDATE, DELETE ON Clients TO [Rola_Sprzedaz];
+GRANT SELECT, INSERT, UPDATE, DELETE ON Orders TO [Rola_Sprzedaz];
+GRANT SELECT, INSERT, UPDATE, DELETE ON OrderDetails TO [Rola_Sprzedaz];
+GRANT SELECT ON Status TO [Rola_Sprzedaz];
+-- Podgląd produktów (żeby sprawdzić dostępność), ale bez edycji
+GRANT SELECT ON Products TO [Rola_Sprzedaz];
+GRANT SELECT ON Categories TO [Rola_Sprzedaz];
+
+-- 3. Planista: Produkty i Plany
+GRANT SELECT, INSERT, UPDATE, DELETE ON Products TO [Rola_Planista];
+GRANT SELECT, INSERT, UPDATE, DELETE ON Categories TO [Rola_Planista];
+GRANT SELECT, INSERT, UPDATE, DELETE ON ProductParts TO [Rola_Planista];
+GRANT SELECT, INSERT, UPDATE, DELETE ON Parameters TO [Rola_Planista];
+GRANT SELECT, INSERT, UPDATE, DELETE ON ProductionPlans TO [Rola_Planista];
+GRANT SELECT, INSERT, UPDATE, DELETE ON ProductionAllocations TO [Rola_Planista];
+GRANT SELECT, INSERT, UPDATE, DELETE ON DaysOff TO [Rola_Planista];
+GRANT EXECUTE ON OBJECT::dbo.ObliczKosztProdukcji TO [Rola_Planista];
+
+-- 4. Magazyn: Części i Logi
+GRANT SELECT, INSERT, UPDATE, DELETE ON Parts TO [Rola_Magazyn];
+GRANT SELECT, INSERT, UPDATE, DELETE ON PartTypes TO [Rola_Magazyn];
+GRANT SELECT, INSERT, UPDATE, DELETE ON ProductionDailyLog TO [Rola_Magazyn];
+-- Aktualizacja stanu gotowych produktów (tylko ilość, bez zmiany cen/nazw)
+GRANT UPDATE (Quantity) ON Products TO [Rola_Magazyn];
+```
+
+### Przykładowi użytkownicy
+```SQL
+-- 1. Użytkownik dla Zarządu
+CREATE USER [User_Analityk] WITHOUT LOGIN;
+ALTER ROLE [Rola_Zarzad] ADD MEMBER [User_Analityk];
+
+-- 2. Użytkownik dla Sprzedaży
+CREATE USER [User_Sprzedawca] WITHOUT LOGIN;
+ALTER ROLE [Rola_Sprzedaz] ADD MEMBER [User_Sprzedawca];
+
+-- 3. Użytkownik dla Planowania
+CREATE USER [User_Planista] WITHOUT LOGIN;
+ALTER ROLE [Rola_Planista] ADD MEMBER [User_Planista];
+
+-- 4. Użytkownik dla Magazynu
+CREATE USER [User_Magazynier] WITHOUT LOGIN;
+ALTER ROLE [Rola_Magazyn] ADD MEMBER [User_Magazynier];
+```
+
 
 <!-- ## Triggery
 
@@ -450,6 +678,6 @@ END
 ```
 
 
-# 4. Inne
+
 
 (informacja o sposobie wygenerowania danych, uprawnienia …) -->
