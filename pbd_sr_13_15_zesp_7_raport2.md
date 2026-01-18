@@ -522,10 +522,10 @@ CREATE TABLE dbo.Status (
 
 ## Widoki
 
-### vw_OrdersSummary
+### Podsumowanie finansowe zamówień
 
 ```SQL
-CREATE OR ALTER VIEW vw_OrdersSummary AS
+CREATE VIEW vw_OrdersSummary AS
 WITH CartValue AS (
     -- KROK 1: Pobranie wartości koszyka dla każdego zamówienia
     SELECT
@@ -556,11 +556,266 @@ SELECT
 FROM DiscountPercent;
 ```
 
-- Opis: Widok agregujący dane finansowe zamówień. Oblicza wartość bazową koszyka, naliczony procent rabatu, wartość rabatu oraz ostateczną kwotę do zapłaty.
+* **Opis:** Kompleksowy widok analityczny agregujący pełne dane finansowe każdego zamówienia. Służy do raportowania sprzedaży i wystawiania dokumentów końcowych.
+* **Logika:** Widok realizuje przetwarzanie danych w trzech etapach (CTE):
+  1. **Wycena koszyka:** Obliczenie surowej wartości zamówienia na podstawie cen jednostkowych i ilości (przed rabatami).
+  2. **Naliczenie rabatu:** Wywołanie logiki biznesowej (funkcja `ObliczZnizke`) dla każdego koszyka w celu ustalenia należnego procentu zniżki.
+  3. **Kalkulacja końcowa:** Zestawienie wartości bazowej, wartości udzielonego rabatu (kwotowo i procentowo) oraz ostatecznej kwoty do zapłaty.
+
+### Raport bestsellerów
+
+```SQL
+CREATE VIEW vw_BestSellingProducts
+AS
+SELECT TOP 3
+    p.ID AS ProductID,
+    p.Name AS ProductName,
+    c.Name AS CategoryName,
+    SUM(od.Quantity) AS TotalSoldQuantity
+FROM OrderDetails od
+JOIN Orders o ON od.Order_ID = o.ID
+JOIN Products p ON od.Product_ID = p.ID
+JOIN Categories c ON p.Category_ID = c.ID
+GROUP BY p.ID, p.Name, c.Name
+ORDER BY TotalSoldQuantity DESC;
+```
+
+* **Opis:** Widok analityczny identyfikujący najlepiej sprzedające się towary. Zwraca listę "Top 3" produktów o największym wolumenie sprzedaży.
+* **Logika:** Agreguje dane ze szczegółów zamówień (`OrderDetails`), sumuje sprzedane sztuki dla każdego produktu i sortuje wynik malejąco, ograniczając go do trzech pierwszych rekordów. Służy do planowania produkcji i działań marketingowych.
+
+### Historia zamówień klientów
+
+```SQL
+CREATE VIEW vw_ClientOrdersHistory
+AS
+SELECT
+    o.ID AS OrderID,
+    o.OrderDate,
+    o.EndDate,
+    c.ID AS ClientID,
+    c.Name AS ClientName,
+    p.Name AS ProductName,
+    od.Quantity,
+    od.UnitPrice,
+    o.Discount,
+    (od.Quantity * od.UnitPrice) * (1 - o.Discount) AS FinalValue
+FROM Orders o
+JOIN Clients c ON c.ID = o.Client_ID
+JOIN OrderDetails od ON od.Order_ID = o.ID
+JOIN Products p ON p.ID = od.Product_ID;
+```
+
+* **Opis:** Szczegółowy rejestr historyczny transakcji z perspektywy klienta. Prezentuje pełne dane o zamówionych produktach, ich cenach jednostkowych oraz zastosowanych rabatach.
+* **Logika:** Wykonuje wyliczenie "w locie" ostatecznej wartości pozycji (`FinalValue`), uwzględniając ilość, cenę jednostkową oraz przypisany do zamówienia rabat (wzór: `Ilość * Cena * (1 - Rabat)`).
+
+### Stan magazynowy produktów
+
+```SQL
+CREATE VIEW vw_CurrentStock
+AS
+SELECT
+    p.ID,
+    p.Name,
+    c.Name AS CategoryName,
+    p.Quantity AS CurrentStock,
+    p.Price,
+    p.Discontinued
+FROM Products p
+JOIN Categories c ON c.ID = p.Category_ID;
+```
+
+* **Opis:** Widok operacyjny prezentujący aktualną dostępność wyrobów gotowych. Łączy dane o produktach z ich kategoriami, ułatwiając przegląd asortymentu.
+* **Logika:** Zwraca kluczowe informacje dla działu sprzedaży: nazwę produktu, kategorię, bieżącą ilość w magazynie, cenę oraz status wycofania ze sprzedaży (`Discontinued`).
+
+### Stan magazynowy części
+
+```SQL
+CREATE   VIEW vw_InventoryStatus
+AS
+SELECT
+    p.ID AS PartID,
+    p.Name AS PartName,
+    pt.Name AS PartType,
+    p.Quantity AS CurrentStock,
+    p.Price
+FROM Parts p
+JOIN PartTypes pt ON p.PartType_ID = pt.ID;
+```
+
+* **Opis:** Raport inwentaryzacyjny dla surowców i półproduktów. Służy do monitorowania zapasów niezbędnych do produkcji.
+* **Logika:** Prezentuje listę części wraz z ich typem (np. metal, plastik) oraz aktualną ilością i ceną zakupu. Jest podstawą do generowania zamówień u dostawców.
+
+### Koszty produkcji - Widok Bazowy
+
+```SQL
+CREATE VIEW vw_ProductionCost_Base
+AS
+SELECT
+    pp.Product_ID,
+    p.Name AS ProductName,
+    c.Name AS CategoryName,
+    pp.EndDate,
+    YEAR(pp.EndDate) AS Year,
+    MONTH(pp.EndDate) AS Month,
+    DATEPART(QUARTER, pp.EndDate) AS Quarter,
+    pp.Quantity,
+    dbo.ObliczKosztProdukcji(pp.Product_ID) AS UnitProductionCost,
+    pp.Quantity * dbo.ObliczKosztProdukcji(pp.Product_ID) AS TotalProductionCost
+FROM ProductionPlans pp
+JOIN Products p ON p.ID = pp.Product_ID
+JOIN Categories c ON c.ID = p.Category_ID;
+```
+
+* **Opis:** Techniczny widok pomocniczy (warstwa pośrednia), stanowiący fundament dla wszystkich raportów kosztowych. Nie jest przeznaczony do bezpośredniego raportowania, lecz do zasilania innych widoków.
+* **Logika:**
+  * Wykorzystuje funkcję skalarną `dbo.ObliczKosztProdukcji` do ustalenia jednostkowego kosztu wytworzenia.
+  * Oblicza całkowity koszt dla danej partii produkcyjnej (`Ilość * Koszt Jednostkowy`).
+  * Dokonuje dekompozycji daty zakończenia produkcji na rok, miesiąc i kwartał, co upraszcza późniejsze grupowanie danych.
+
+### Raporty kosztów produkcji (Agregacje czasowe)
+
+```SQL
+CREATE VIEW vw_ProductionCost_Annually
+AS
+SELECT
+    Year,
+    CategoryName,
+    ProductName,
+    SUM(Quantity) AS TotalQuantity,
+    AVG(UnitProductionCost) AS AvgUnitCost,
+    SUM(TotalProductionCost) AS TotalCost
+FROM vw_ProductionCost_Base
+GROUP BY Year, CategoryName, ProductName;
+```
+
+```SQL
+ CREATE VIEW vw_ProductionCost_Quarterly
+AS
+SELECT
+    Year,
+    QUARTER,
+    CategoryName,
+    ProductName,
+    SUM(Quantity) AS TotalQuantity,
+    AVG(UnitProductionCost) AS AvgUnitCost,
+    SUM(TotalProductionCost) AS TotalCost
+FROM vw_ProductionCost_Base
+GROUP BY Year, QUARTER, CategoryName, ProductName;
+```
+
+```SQL
+CREATE VIEW vw_ProductionCost_Monthly
+AS
+SELECT
+    Year,
+    Month,
+    CategoryName,
+    ProductName,
+    SUM(Quantity) AS TotalQuantity,
+    AVG(UnitProductionCost) AS AvgUnitCost,
+    SUM(TotalProductionCost) AS TotalCost
+FROM vw_ProductionCost_Base
+GROUP BY Year, Month, CategoryName, ProductName;
+```
+
+```SQL
+CREATE VIEW vw_Management_ProductionCosts
+AS
+SELECT
+    Year,
+    Month,
+    CategoryName,
+    ProductName,
+    SUM(TotalProductionCost) AS ProductionCost
+FROM vw_ProductionCost_Base
+GROUP BY Year, Month, CategoryName, ProductName;
+```
+
+Zestaw widoków analitycznych opartych na `vw_ProductionCost_Base`, służących do kontrolingu finansowego w różnych ujęciach czasowych:
+
+1.  **`dbo.vw_ProductionCost_Annually` (Roczny):** Agreguje koszty i ilości wyprodukowanych dóbr w ujęciu rocznym. Pozwala na analizę trendów wieloletnich.
+2.  **`dbo.vw_ProductionCost_Quarterly` (Kwartalny):** Grupuje dane produkcyjne w podziale na kwartały, co jest kluczowe dla okresowych rozliczeń finansowych firmy.
+3.  **`dbo.vw_ProductionCost_Monthly` (Miesięczny):** Najbardziej szczegółowy widok kosztowy, sumujący wydatki produkcyjne dla każdego miesiąca.
+4.  **`dbo.vw_Management_ProductionCosts` (Zarządczy):** Widok dedykowany dla kadry zarządzającej (Dashboard). Prezentuje skonsolidowane dane kosztowe w podziale na kategorie i produkty w ujęciu miesięcznym.
+
+### Plan produkcji - operacyjny
+
+```SQL
+CREATE VIEW vw_PlannedProduction
+AS
+SELECT
+    pp.ID AS ProductionPlanID,
+    p.Name AS ProductName,
+    pp.Quantity,
+    pp.EndDate,
+    s.Name AS Status,
+    pp.ProductionType
+FROM ProductionPlans pp
+JOIN Products p ON p.ID = pp.Product_ID
+JOIN Status s ON s.ID = pp.Status_ID;
+```
+
+* **Opis:** Widok operacyjny dla kierowników zmiany. Prezentuje bieżącą kolejkę zadań produkcyjnych.
+* **Logika:** Zestawia plany produkcyjne z nazwami produktów i czytelnymi statusami (np. "W trakcie", "Oczekujące"), pomijając zbędne dane analityczne.
+
+### Raport planów produkcyjnych
+
+```SQL
+CREATE VIEW vw_ProductionPlan_Report
+AS
+SELECT
+    p.Name AS ProductName,
+    c.Name AS CategoryName,
+    pp.Quantity,
+    pp.EndDate,
+    YEAR(pp.EndDate) AS Year,
+    MONTH(pp.EndDate) AS Month,
+    DATEPART(QUARTER, pp.EndDate) AS Quarter,
+    s.Name AS Status,
+    pp.ProductionType
+FROM ProductionPlans pp
+JOIN Products p ON p.ID = pp.Product_ID
+JOIN Categories c ON c.ID = p.Category_ID
+JOIN Status s ON s.ID = pp.Status_ID;
+```
+
+* **Opis:** Rozbudowana wersja widoku operacyjnego, wzbogacona o wymiary czasowe (rok, miesiąc, kwartał). Służy do analizy wydajności i terminowości działu produkcji.
+* **Logika:** Umożliwia filtrowanie historii produkcji po okresach oraz typie zlecenia (Cykliczne vs Na żądanie).
+
+### Raport sprzedaży
+
+```SQL
+CREATE VIEW vw_Sales_Report
+AS
+SELECT
+    YEAR(o.OrderDate) AS Year,
+    MONTH(o.OrderDate) AS Month,
+    DATEPART(WEEK, o.OrderDate) AS Week,
+    c.Name AS CategoryName,
+    p.Name AS ProductName,
+    SUM(od.Quantity) AS SoldQuantity,
+    SUM(od.Quantity * od.UnitPrice * (1 - o.Discount)) AS Revenue
+FROM Orders o
+JOIN OrderDetails od ON od.Order_ID = o.ID
+JOIN Products p ON p.ID = od.Product_ID
+JOIN Categories c ON c.ID = p.Category_ID
+GROUP BY
+    YEAR(o.OrderDate),
+    MONTH(o.OrderDate),
+    DATEPART(WEEK, o.OrderDate),
+    c.Name,
+    p.Name;
+```
+
+* **Opis:** Zaawansowany widok analityczny służący do monitorowania przychodów firmy.
+* **Logika:**
+  * Agreguje dane sprzedażowe do poziomu Tygodnia, Miesiąca i Roku.
+  * Oblicza rzeczywisty przychód (`Revenue`), uwzględniając udzielone rabaty.
+  * Grupuje wyniki według kategorii i produktów, co pozwala na badanie sezonowości sprzedaży oraz efektywności poszczególnych grup towarowych.
 
 ## Procedury/funkcje
 
-### ObliczKosztProdukcji
+### Koszt produkcji
 
 ```sql
 CREATE FUNCTION dbo.ObliczKosztProdukcji (@ProductId INT)
@@ -580,9 +835,12 @@ BEGIN
 END
 ```
 
-- Opis: Funkcja obliczająca koszt produkcji danego produktu na podstawie ilości i ceny jego części.
 
-### ObliczCeneSprzedaży
+* **Typ:** Funkcja skalarna.
+* **Opis:** Oblicza całkowity koszt materiałowy potrzebny do wytworzenia jednej sztuki produktu.
+* **Logika biznesowa:** Funkcja iteruje po strukturze produktu (BOM - Bill of Materials), sumując iloczyny cen zakupu części i ich wymaganej ilości. Wynik stanowi bazę do ustalania ceny sprzedaży. Zabezpieczona przed wartościami `NULL` (zwraca 0 w przypadku braku zdefiniowanych części).
+
+### Cena sprzedaży
 
 ```SQL
 CREATE FUNCTION dbo.ObliczCeneSprzedazy (@ProductId INT)
@@ -604,9 +862,11 @@ BEGIN
 END
 ```
 
-- Opis: Funkcja ustala cenę na podstawie kosztu produkcji i marży z tabeli `Parameters`.
+* **Typ:** Funkcja skalarna.
+* **Opis:** Automatycznie generuje sugerowaną cenę detaliczną produktu, zapewniając spójność marży w całym asortymencie.
+* **Logika biznesowa:** Pobiera wyliczony wcześniej koszt produkcji i narzuca na niego globalną marżę zdefiniowaną w tabeli konfiguracyjnej `Parameters`. Dzięki temu zmiana marży w jednym miejscu w systemie automatycznie aktualizuje sugerowane ceny wszystkich produktów.
 
-### PobierzWartoscKoszyka
+### Wartość koszyka
 
 ```SQL
 CREATE FUNCTION dbo.PobierzWartoscKoszyka (@OrderId INT)
@@ -623,9 +883,11 @@ BEGIN
 END
 ```
 
-- Opis: Funkcja pomocnicza sumująca pozycje zamówienia.
+* **Typ:** Funkcja skalarna (pomocnicza).
+* **Opis:** Szybkie obliczenie wartości brutto pozycji znajdujących się w danym zamówieniu.
+* **Logika biznesowa:** Sumuje iloczyn `Ilość * Cena Jednostkowa` dla wszystkich linii danego zamówienia. Stanowi punkt wyjścia do obliczeń rabatowych.
 
-### ObliczZnizke
+### Algorytm rabatowy
 
 ```SQL
 CREATE OR ALTER FUNCTION dbo.ObliczZnizke (@WartoscZamowienia DECIMAL(18, 2))
@@ -665,36 +927,45 @@ BEGIN
 END;
 ```
 
-- Opis: Funkcja oblicza rabat w zależności od wartości zamówienia (logika progowa).
+* **Typ:** Funkcja skalarna.
+* **Opis:** Zaawansowany mechanizm wyliczania dynamicznego rabatu w zależności od wartości zamówienia.
+* **Logika biznesowa:** Implementuje progresywny system zniżek oparty na parametrach globalnych:
+  * Sprawdza, czy wartość zamówienia przekracza próg minimalny (`DiscountThreshold`).
+  * Za każde pełne 100 jednostek walutowych powyżej progu dolicza określony procent rabatu (`DiscountStepValue`).
+  * Pilnuje, aby wyliczona zniżka nie przekroczyła ustalonego odgórnie limitu (`MaxDiscount`), chroniąc rentowność sprzedaży.
 
 
 # 4. Role i Uprawnienia
 
-Zastosowano model **Role-Based Access Control (RBAC)**.
+### Model uprawnień
 
-### Definicja Ról
+W systemie wdrożono model bezpieczeństwa oparty na rolach (RBAC), co zapewnia separację obowiązków i minimalizację ryzyka nieuprawnionego dostępu do danych wrażliwych.
+
+1. **Rola Zarządcza (`Rola_Zarzad`)**
+   * **Przeznaczenie:** Dla kadry kierowniczej i analityków biznesowych.
+   * **Uprawnienia:** Wyłącznie odczyt (`SELECT`) wszystkich danych w schemacie. Umożliwia generowanie raportów bez ryzyka przypadkowej modyfikacji danych operacyjnych.
+
+2. **Rola Sprzedażowa (`Rola_Sprzedaz`)**
+   * **Przeznaczenie:** Dla pracowników obsługi klienta.
+   * **Uprawnienia:** Pełna edycja danych klientów i zamówień. Dostęp do katalogu produktów jest ograniczony do odczytu (sprawdzanie dostępności i cen), co uniemożliwia sprzedawcom manipulację cenami bazowymi.
+
+3. **Rola Planistyczna (`Rola_Planista`)**
+   * **Przeznaczenie:** Dla managerów produkcji.
+   * **Uprawnienia:** Pełna kontrola nad definicjami produktów, recepturami (BOM), planami produkcyjnymi oraz globalnymi parametrami systemu (marże, progi rabatowe). Jest to rola o najwyższym wpływie na logikę biznesową systemu.
+
+4. **Rola Magazynowa (`Rola_Magazyn`)**
+   * **Przeznaczenie:** Dla pracowników magazynu i hali produkcyjnej.
+   * **Uprawnienia:** Zarządzanie stanami surowców (`Parts`) oraz raportowanie postępów produkcji (`ProductionDailyLog`). Rola posiada specyficzne uprawnienie do aktualizacji *tylko* stanu magazynowego produktów gotowych (`UPDATE ON Products (Quantity)`), bez możliwości zmiany ich nazw czy cen.
+
+### Utworzenie ról i przypisanie uprawnień
 
 ```SQL
--- Rola dla Zarządu i Analityków (tylko podgląd raportów)
+-- 1. Zarząd
 CREATE ROLE [Rola_Zarzad];
-
--- Rola dla Działu Sprzedaży (obsługa klientów i zamówień)
-CREATE ROLE [Rola_Sprzedaz];
-
--- Rola dla Planisty Produkcji (planowanie, definicja produktów)
-CREATE ROLE [Rola_Planista];
-
--- Rola dla Magazyniera / Pracownika Produkcji (realizacja, stany magazynowe)
-CREATE ROLE [Rola_Magazyn];
-```
-
-### Przypisanie uprawnień
-
-```SQL
--- 1. Zarząd: tylko odczyt
 GRANT SELECT ON SCHEMA::dbo TO [Rola_Zarzad];
 
--- 2. Dział Sprzedaży: Klienci i Zamówienia (Pełny dostęp)
+-- 2. Dział Sprzedaży
+CREATE ROLE [Rola_Sprzedaz];
 GRANT SELECT, INSERT, UPDATE, DELETE ON Clients TO [Rola_Sprzedaz];
 GRANT SELECT, INSERT, UPDATE, DELETE ON Orders TO [Rola_Sprzedaz];
 GRANT SELECT, INSERT, UPDATE, DELETE ON OrderDetails TO [Rola_Sprzedaz];
@@ -703,7 +974,8 @@ GRANT SELECT ON Status TO [Rola_Sprzedaz];
 GRANT SELECT ON Products TO [Rola_Sprzedaz];
 GRANT SELECT ON Categories TO [Rola_Sprzedaz];
 
--- 3. Planista: Produkty i Plany
+-- 3. Planista
+CREATE ROLE [Rola_Planista];
 GRANT SELECT, INSERT, UPDATE, DELETE ON Products TO [Rola_Planista];
 GRANT SELECT, INSERT, UPDATE, DELETE ON Categories TO [Rola_Planista];
 GRANT SELECT, INSERT, UPDATE, DELETE ON ProductParts TO [Rola_Planista];
@@ -713,7 +985,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ProductionAllocations TO [Rola_Planista]
 GRANT SELECT, INSERT, UPDATE, DELETE ON DaysOff TO [Rola_Planista];
 GRANT EXECUTE ON OBJECT::dbo.ObliczKosztProdukcji TO [Rola_Planista];
 
--- 4. Magazyn: Części i Logi
+-- 4. Magazyn
+CREATE ROLE [Rola_Magazyn];
 GRANT SELECT, INSERT, UPDATE, DELETE ON Parts TO [Rola_Magazyn];
 GRANT SELECT, INSERT, UPDATE, DELETE ON PartTypes TO [Rola_Magazyn];
 GRANT SELECT, INSERT, UPDATE, DELETE ON ProductionDailyLog TO [Rola_Magazyn];
