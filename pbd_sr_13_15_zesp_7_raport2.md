@@ -1665,9 +1665,9 @@ BEGIN
     BEGIN
         DECLARE @Message NVARCHAR(500);
         SELECT TOP 1 @Message = 
-            'OSTRZEŻENIE: Brak części "' + PartName + '" dla planu ID ' + 
+            N'OSTRZEŻENIE: Brak części "' + PartName + '" dla planu ID ' + 
             CAST(PlanID AS VARCHAR) + '. Potrzeba: ' + CAST(Required AS VARCHAR) + 
-            ', dostępne: ' + CAST(Available AS VARCHAR)
+            N', dostępne: ' + CAST(Available AS VARCHAR)
         FROM @MissingParts;
         
         PRINT @Message;
