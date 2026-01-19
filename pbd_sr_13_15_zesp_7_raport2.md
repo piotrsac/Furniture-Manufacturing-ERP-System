@@ -1186,22 +1186,36 @@ AS
 
 ```SQL
 CREATE PROCEDURE dbo.AddClient
-    @Name        nvarchar(50),
-    @PhoneNumber varchar(15),
-    @Address     nvarchar(50),
-    @City        nvarchar(50),
-    @Country     nvarchar(50),
-    @ClientType  char(1),          -- 'I' (Indywidualny) lub 'F' (Firma)
-    @Email       varchar(320) = NULL,
-    @NIP         varchar(10)  = NULL,
-    @PostalCode  varchar(15)  = NULL
+    @ClientID    INT OUTPUT,
+    @Name        NVARCHAR(50),
+    @PhoneNumber VARCHAR(15),
+    @Address     NVARCHAR(50),
+    @City        NVARCHAR(50),
+    @Country     NVARCHAR(50),
+    @Email       VARCHAR(320) = NULL,
+    @NIP         VARCHAR(10)  = NULL,
+    @PostalCode  VARCHAR(15)  = NULL
 AS
+BEGIN
     INSERT INTO dbo.Clients (
-        Name, Email, PhoneNumber, NIP, Address, PostalCode, City, Country, ClientType
+        Name, Email, PhoneNumber, NIP, 
+        Address, PostalCode, City, Country, ClientType
     )
     VALUES (
-        @Name, @Email, @PhoneNumber, @NIP, @Address, @PostalCode, @City, @Country, @ClientType
+        @Name, 
+        @Email, 
+        @PhoneNumber, 
+        @NIP,
+        @Address, 
+        @PostalCode, 
+        @City, 
+        @Country, 
+        CASE
+            WHEN @NIP IS NOT NULL AND LEN(@NIP) > 0 THEN 'F'
+            ELSE 'I'
+        END
     );
+END
 ```
 
 * **Opis:** Procedura służąca do wprowadzania nowych kontrahentów do systemu. Obsługuje zarówno klientów indywidualnych, jak i firmy.
