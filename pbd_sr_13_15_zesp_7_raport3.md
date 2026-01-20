@@ -1211,7 +1211,7 @@ AS
 ### Procedura: Złóż zamówienie
 
 ```SQL
-CREATE   PROCEDURE dbo.AddOrder
+CREATE  OR Alter PROCEDURE dbo.AddOrder
 (
     @ClientName NVARCHAR(50),
     @Email VARCHAR(320) = NULL,
@@ -1222,7 +1222,7 @@ CREATE   PROCEDURE dbo.AddOrder
     @City NVARCHAR(50) = NULL,
     @Country NVARCHAR(50) = NULL,
     @OrderDate DATE,
-    @Products dbo.OrderProductType READONLY
+    @Products dbo.OrderProductType READONLY-- koszyk zdefiniowany przez klienta
 )
 AS
 BEGIN
@@ -1243,7 +1243,7 @@ BEGIN
         WHERE Name = @ClientName
           AND (Email = @Email OR @Email IS NULL);
 
-        IF @ClientID IS NULL
+        IF @ClientID IS NULL--nie ma klienta u nas w bazie - trzeba dodac
         BEGIN
             INSERT INTO Clients
             (
@@ -1261,15 +1261,15 @@ BEGIN
                 @City,
                 @Country,
                 CASE
-                    WHEN @NIP IS NOT NULL AND LEN(@NIP) > 0 THEN 'F'
-                    ELSE 'I'
+                    WHEN @NIP IS NOT NULL AND LEN(@NIP) > 0 THEN 'F'-- jesli klient podal nip to to firma
+                    ELSE 'I'--w przeciwnym przypadku indywidualny
                 END
             );
 
-            SET @ClientID = SCOPE_IDENTITY();
+            SET @ClientID = SCOPE_IDENTITY();--zwraca ostatnią wartość kolumny IDENTITY wygenerowana wczesniej
         END
 
-        -- 2. Obliczenie wartości zamówienia (bez rabatu)
+        -- 2. Obliczenie wartości zamówienia (bez rabatu) na podstawie koszyka
         SELECT @TotalAmount = SUM(p.Price * op.Quantity)
         FROM @Products op
         JOIN Products p ON p.ID = op.Product_ID;
@@ -1284,7 +1284,7 @@ BEGIN
         -- 4. Wstawienie pozycji zamówienia
         INSERT INTO OrderDetails (Order_ID, Product_ID, Quantity, UnitPrice)
         SELECT
-            @OrderID,
+            @OrderID,--wszytsko idzie do tego samego zamowienia
             p.ID,
             op.Quantity,
             p.Price
@@ -1297,11 +1297,11 @@ BEGIN
             @Qty INT,
             @Stock INT,
             @Remaining INT,
-            @AssemblyCapacity INT,
+            @AssemblyCapacity INT,--ile sztuk mozna dziennie zlozyc
             @DaysProduction INT,
             @PlanID INT;
 
-        DECLARE ProductCursor CURSOR FOR
+        DECLARE ProductCursor CURSOR FOR--cursor umozliwia iterowanie po wszystkich wierszach tabeli
             SELECT Product_ID, Quantity FROM @Products;
 
         OPEN ProductCursor;
@@ -1323,7 +1323,7 @@ BEGIN
                 WHERE ID = @ProductID;
 
                 UPDATE Orders
-                SET EndDate = DATEADD(DAY, 1, @OrderDate)
+                SET EndDate = dbo.CalculateEndDate(@OrderDate, 1)--zakladamy ze czas realizacji to min 1 dzien
                 WHERE ID = @OrderID;
             END
             ELSE
@@ -1416,7 +1416,7 @@ BEGIN
 
     END TRY
     BEGIN CATCH
-        IF @@TRANCOUNT > 0
+        IF @@TRANCOUNT > 0--jesli transakcja dalej otwarta mimo ze powinna sie zakonczyc
             ROLLBACK TRAN;
 
         THROW;
