@@ -755,7 +755,7 @@ ORDER BY TotalSoldQuantity DESC;
 ### Historia zamówień klientów
 
 ```SQL
-CREATE VIEW vw_ClientOrdersHistory
+CREATE OR ALTER VIEW vw_ClientOrdersHistory
 AS
 SELECT
     o.ID AS OrderID,
@@ -767,11 +767,13 @@ SELECT
     od.Quantity,
     od.UnitPrice,
     o.Discount,
-    (od.Quantity * od.UnitPrice) * (1 - o.Discount) AS FinalValue
+    (od.Quantity * od.UnitPrice) * (1 - o.Discount) AS FinalValue,
+    status.name as status -- jaki status zamowienia
 FROM Orders o
 JOIN Clients c ON c.ID = o.Client_ID
 JOIN OrderDetails od ON od.Order_ID = o.ID
-JOIN Products p ON p.ID = od.Product_ID;
+JOIN Products p ON p.ID = od.Product_ID
+Join status on status.id=o.status_id;
 ```
 
 - **Opis:** Szczegółowy rejestr historyczny transakcji z perspektywy klienta. Prezentuje pełne dane o zamówionych produktach, ich cenach jednostkowych oraz zastosowanych rabatach.
