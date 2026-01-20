@@ -262,7 +262,7 @@ Autorzy:
 ## Schemat bazy danych
 
 <p align="center">
-  <img src="Projekt_bazy_v0-2026-01-18_17-53.png" alt="Diagram" width="800">
+  <img src="Projekt_bazy_v0-2026-01-20_20-56.png" alt="Diagram" width="800">
 </p>
 
 ### Opis relacji (ERD)
@@ -272,21 +272,25 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 #### 1. Relacje związane z zamówieniami
 
 **Clients → Orders** (1:N)
+
 - Jeden klient może złożyć wiele zamówień
 - Każde zamówienie musi być przypisane do dokładnie jednego klienta
 - Klucz obcy: `Orders.Client_ID` → `Clients.ID`
 
 **Orders → OrderDetails** (1:N)
+
 - Jedno zamówienie składa się z wielu pozycji (produktów)
 - Każda pozycja należy do dokładnie jednego zamówienia
 - Klucz obcy: `OrderDetails.Order_ID` → `Orders.ID`
 
 **Products → OrderDetails** (1:N)
+
 - Jeden produkt może występować w wielu zamówieniach
 - Każda pozycja zamówienia dotyczy dokładnie jednego produktu
 - Klucz obcy: `OrderDetails.Product_ID` → `Products.ID`
 
 **Status → Orders** (1:N)
+
 - Status może być przypisany do wielu zamówień
 - Każde zamówienie ma dokładnie jeden status
 - Klucz obcy: `Orders.Status_ID` → `Status.ID`
@@ -294,11 +298,13 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 #### 2. Relacje produktów i części
 
 **Categories → Products** (1:N)
+
 - Jedna kategoria grupuje wiele produktów
 - Każdy produkt należy do dokładnie jednej kategorii
 - Klucz obcy: `Products.Category_ID` → `Categories.ID`
 
 **Products ↔ Parts** (M:N poprzez ProductParts)
+
 - Jeden produkt składa się z wielu części
 - Jedna część może być wykorzystana w wielu produktach
 - Tabela łącznikowa: `ProductParts`
@@ -306,6 +312,7 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
   - Klucz obcy: `ProductParts.Part_ID` → `Parts.ID`
 
 **PartTypes → Parts** (1:N)
+
 - Jeden typ części klasyfikuje wiele konkretnych części
 - Każda część należy do dokładnie jednego typu
 - Klucz obcy: `Parts.PartType_ID` → `PartTypes.ID`
@@ -313,16 +320,19 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 #### 3. Relacje produkcyjne
 
 **Products → ProductionPlans** (1:N)
+
 - Dla jednego produktu może istnieć wiele planów produkcyjnych
 - Każdy plan dotyczy dokładnie jednego produktu
 - Klucz obcy: `ProductionPlans.Product_ID` → `Products.ID`
 
 **Status → ProductionPlans** (1:N)
+
 - Status może być przypisany do wielu planów produkcyjnych
 - Każdy plan ma dokładnie jeden status
 - Klucz obcy: `ProductionPlans.Status_ID` → `Status.ID`
 
 **ProductionPlans → ProductionDailyLog** (1:N)
+
 - Jeden plan produkcyjny ma wiele wpisów dziennych
 - Każdy wpis dziennika dotyczy dokładnie jednego planu
 - Klucz obcy: `ProductionDailyLog.ProductionPlan_ID` → `ProductionPlans.ID`
@@ -330,6 +340,7 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 #### 4. Relacje alokacji produkcji do zamówień
 
 **ProductionPlans ↔ OrderDetails** (M:N poprzez ProductionAllocations)
+
 - Jeden plan produkcji może być alokowany do wielu pozycji zamówień
 - Jedna pozycja zamówienia może być realizowana z wielu planów produkcji
 - Tabela łącznikowa: `ProductionAllocations`
@@ -340,11 +351,13 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 #### 5. Relacje konfiguracyjne
 
 **Parameters** (singleton)
+
 - Tabela jednowierszowa (bez relacji z innymi tabelami)
 - Przechowuje globalne parametry biznesowe (marże, progi rabatowe)
 - Wykorzystywana przez funkcje obliczeniowe
 
 **DaysOff** (słownik)
+
 - Niezależna tabela przechowująca dni wolne od pracy
 - Wykorzystywana przez funkcję `CalculateEndDate` do pomijania dni nieroboczych
 
@@ -360,7 +373,7 @@ CREATE TABLE dbo.Categories (
 );
 ```
 
-* **Opis tabeli:** Tabela słownikowa służąca do kategoryzacji asortymentu (np. meble, akcesoria). Umożliwia logiczne grupowanie produktów w raportach i analizach sprzedaży.
+- **Opis tabeli:** Tabela słownikowa służąca do kategoryzacji asortymentu (np. meble, akcesoria). Umożliwia logiczne grupowanie produktów w raportach i analizach sprzedaży.
 
 ### Klienci
 
@@ -392,11 +405,11 @@ CREATE TABLE dbo.Clients (
 );
 ```
 
-* **Opis tabeli:** Centralna baza kontrahentów zawierająca dane klientów indywidualnych oraz firmowych. Przechowuje informacje kontaktowe, adresowe oraz identyfikatory podatkowe (NIP).
-* **Więzy integralności (Constraints):**
-  * `CK_Clients_ClientType`: Ogranicza typ klienta do dwóch wartości: `'F'` (Firma) lub `'I'` (Indywidualny).
-  * `CK_Clients_AtLeastOneContact`: Realizuje regułę biznesową wymagającą co najmniej jednej formy kontaktu. Rekord nie zostanie zapisany, jeśli zarówno `Email`, jak i `PhoneNumber` są puste (NULL).
-  * `CK_Clients_EmailValid`: Złożony warunek sprawdzający poprawność adresu e-mail bez użycia RegEx (ograniczenie silnika SQL Server w standardowych constraintach). Weryfikuje:
+- **Opis tabeli:** Centralna baza kontrahentów zawierająca dane klientów indywidualnych oraz firmowych. Przechowuje informacje kontaktowe, adresowe oraz identyfikatory podatkowe (NIP).
+- **Więzy integralności (Constraints):**
+  - `CK_Clients_ClientType`: Ogranicza typ klienta do dwóch wartości: `'F'` (Firma) lub `'I'` (Indywidualny).
+  - `CK_Clients_AtLeastOneContact`: Realizuje regułę biznesową wymagającą co najmniej jednej formy kontaktu. Rekord nie zostanie zapisany, jeśli zarówno `Email`, jak i `PhoneNumber` są puste (NULL).
+  - `CK_Clients_EmailValid`: Złożony warunek sprawdzający poprawność adresu e-mail bez użycia RegEx (ograniczenie silnika SQL Server w standardowych constraintach). Weryfikuje:
     1. Brak spacji w adresie (`NOT LIKE '% %'`).
     2. Obecność dokładnie jednego znaku `@` (poprzez porównanie długości ciągu przed i po usunięciu znaku).
     3. Poprawną strukturę znaków (wymaga sekwencji: ciąg -> `@` -> ciąg -> `.` -> ciąg).
@@ -415,9 +428,9 @@ CREATE TABLE dbo.DaysOff (
 );
 ```
 
-* **Opis tabeli:** Ewidencja przerw w harmonogramie pracy zakładu. Służy do rejestrowania dni wolnych, świąt oraz przestojów technicznych, co jest kluczowe dla poprawnego planowania mocy przerobowych.
-* **Więzy integralności (Constraints):**
-  * `CK_DaysOff_StartDateBeforeEndDate`: Zabezpiecza spójność logiczną dat – data rozpoczęcia przerwy musi być wcześniejsza lub równa dacie jej zakończenia.
+- **Opis tabeli:** Ewidencja przerw w harmonogramie pracy zakładu. Służy do rejestrowania dni wolnych, świąt oraz przestojów technicznych, co jest kluczowe dla poprawnego planowania mocy przerobowych.
+- **Więzy integralności (Constraints):**
+  - `CK_DaysOff_StartDateBeforeEndDate`: Zabezpiecza spójność logiczną dat – data rozpoczęcia przerwy musi być wcześniejsza lub równa dacie jej zakończenia.
 
 ### Szczegóły zamówienia
 
@@ -441,10 +454,10 @@ CREATE TABLE dbo.OrderDetails (
 );
 ```
 
-* **Opis tabeli:** Tabela asocjacyjna łącząca zamówienia z produktami. Przechowuje informacje o historycznym stanie transakcji – konkretną ilość zamówionego towaru oraz cenę jednostkową obowiązującą w momencie zakupu (niezależną od późniejszych zmian w cenniku).
-* **Więzy integralności (Constraints):**
-  * `CK_OrderDetails_QuantityNotNegative`: Blokuje wprowadzenie ujemnej ilości towaru.
-  * `CK_OrderDetails_UnitPriceOverZero`: Cena sprzedaży musi być większa od zera.
+- **Opis tabeli:** Tabela asocjacyjna łącząca zamówienia z produktami. Przechowuje informacje o historycznym stanie transakcji – konkretną ilość zamówionego towaru oraz cenę jednostkową obowiązującą w momencie zakupu (niezależną od późniejszych zmian w cenniku).
+- **Więzy integralności (Constraints):**
+  - `CK_OrderDetails_QuantityNotNegative`: Blokuje wprowadzenie ujemnej ilości towaru.
+  - `CK_OrderDetails_UnitPriceOverZero`: Cena sprzedaży musi być większa od zera.
 
 ### Zamówienia
 
@@ -468,9 +481,9 @@ CREATE TABLE dbo.Orders (
 );
 ```
 
-* **Opis tabeli:** Tabela nagłówkowa zamówień, przechowująca informacje o kliencie, datach realizacji, statusie oraz przyznanym rabacie.
-* **Więzy integralności (Constraints):**
-  * `CK_Orders_EndDateAfterOrderDate`: Data zakończenia (realizacji) zamówienia nie może być wcześniejsza niż data jego złożenia.
+- **Opis tabeli:** Tabela nagłówkowa zamówień, przechowująca informacje o kliencie, datach realizacji, statusie oraz przyznanym rabacie.
+- **Więzy integralności (Constraints):**
+  - `CK_Orders_EndDateAfterOrderDate`: Data zakończenia (realizacji) zamówienia nie może być wcześniejsza niż data jego złożenia.
 
 ### Kategorie części
 
@@ -482,7 +495,7 @@ CREATE TABLE dbo.PartTypes (
 );
 ```
 
-* **Opis tabeli:** Tabela słownikowa klasyfikująca rodzaje materiałów i półproduktów (np. metal, drewno, plastik). Ułatwia zarządzanie magazynem surowców.
+- **Opis tabeli:** Tabela słownikowa klasyfikująca rodzaje materiałów i półproduktów (np. metal, drewno, plastik). Ułatwia zarządzanie magazynem surowców.
 
 ### Części
 
@@ -497,17 +510,17 @@ CREATE TABLE dbo.Parts (
     CONSTRAINT CK_Parts_QuantityNotNegative CHECK (Quantity >= 0),
     CONSTRAINT CK_Parts_PriceOverZero CHECK (Price > 0),
     CONSTRAINT PK_Parts PRIMARY KEY CLUSTERED (ID),
-    
+
     CONSTRAINT FK_Parts_PartTypes
         FOREIGN KEY (PartType_ID)
         REFERENCES dbo.PartTypes (ID)
 );
 ```
 
-* **Opis tabeli:** Magazyn surowców i półproduktów. Tabela przechowuje aktualny stan magazynowy, cenę zakupu części oraz informacje o mocach przerobowych.
-* **Więzy integralności (Constraints):**
-  * `CK_Parts_QuantityNotNegative`: Stan magazynowy nie może być ujemny.
-  * `CK_Parts_PriceOverZero`: Cena zakupu części musi być dodatnia.
+- **Opis tabeli:** Magazyn surowców i półproduktów. Tabela przechowuje aktualny stan magazynowy, cenę zakupu części oraz informacje o mocach przerobowych.
+- **Więzy integralności (Constraints):**
+  - `CK_Parts_QuantityNotNegative`: Stan magazynowy nie może być ujemny.
+  - `CK_Parts_PriceOverZero`: Cena zakupu części musi być dodatnia.
 
 ### Globalne parametry
 
@@ -524,9 +537,9 @@ CREATE TABLE dbo.Parameters (
         CHECK (Margin >= 0 AND DiscountStepValue >= 0);
 ```
 
-* **Opis tabeli:** Tabela jedno-wierszowa (singleton) pełniąca rolę globalnej konfiguracji systemu. Przechowuje kluczowe zmienne sterujące logiką biznesową, wykorzystywane przez funkcje obliczające ceny i rabaty.
-* **Więzy integralności (Constraints):**
-  * `CK_Parameters_Values`: Pełni rolę bezpiecznika dla logiki biznesowej. Blokuje możliwość wprowadzenia ujemnej marży (`Margin`) oraz ujemnego skoku rabatowego. Zapobiega to błędom w wyliczeniach cen sprzedaży i naliczaniu "odwrotnych" rabatów.
+- **Opis tabeli:** Tabela jedno-wierszowa (singleton) pełniąca rolę globalnej konfiguracji systemu. Przechowuje kluczowe zmienne sterujące logiką biznesową, wykorzystywane przez funkcje obliczające ceny i rabaty.
+- **Więzy integralności (Constraints):**
+  - `CK_Parameters_Values`: Pełni rolę bezpiecznika dla logiki biznesowej. Blokuje możliwość wprowadzenia ujemnej marży (`Margin`) oraz ujemnego skoku rabatowego. Zapobiega to błędom w wyliczeniach cen sprzedaży i naliczaniu "odwrotnych" rabatów.
 
 ### Części danego produktu (łącznikowa)
 
@@ -547,9 +560,9 @@ CREATE TABLE dbo.ProductParts (
 );
 ```
 
-* **Opis tabeli:** Tabela definiująca strukturę materiałową produktu. Określa, jakie części i w jakiej ilości są niezbędne do wytworzenia jednej sztuki produktu gotowego.
-* **Więzy integralności (Constraints):**
-  * `CK_ProductParts_QuantityNotNegative`: Ilość wymaganych części nie może być ujemna.
+- **Opis tabeli:** Tabela definiująca strukturę materiałową produktu. Określa, jakie części i w jakiej ilości są niezbędne do wytworzenia jednej sztuki produktu gotowego.
+- **Więzy integralności (Constraints):**
+  - `CK_ProductParts_QuantityNotNegative`: Ilość wymaganych części nie może być ujemna.
 
 ### Zarezerwowanie produkowanych rzeczy do konkretnego zamówienia
 
@@ -571,9 +584,9 @@ CREATE TABLE ProductionAllocations (
 );
 ```
 
-* **Opis tabeli:** Tabela łącząca plany produkcyjne z konkretnymi pozycjami zamówień. Pozwala na rezerwację towaru będącego jeszcze w procesie produkcji pod konkretne zamówienie klienta.
-* **Więzy integralności (Constraints):**
-  * `CK_ProductionAllocations_QuantityAllocatedNotNegative`: Ilość alokowanego towaru musi być nieujemna.
+- **Opis tabeli:** Tabela łącząca plany produkcyjne z konkretnymi pozycjami zamówień. Pozwala na rezerwację towaru będącego jeszcze w procesie produkcji pod konkretne zamówienie klienta.
+- **Więzy integralności (Constraints):**
+  - `CK_ProductionAllocations_QuantityAllocatedNotNegative`: Ilość alokowanego towaru musi być nieujemna.
 
 ### Dzienne sprawozdanie z wykonywania planu produkcyjnego
 
@@ -588,17 +601,17 @@ CREATE TABLE ProductionDailyLog (
     CONSTRAINT CK_ProductionDailyLog_QualityStatus CHECK (QualityStatus in ('K', 'F')),
     CONSTRAINT CK_ProductionDailyLog_QuantityNotNegative CHECK (Quantity >= 0),
     CONSTRAINT ProductionDailyLog_pk PRIMARY KEY (ID),
-    
+
     CONSTRAINT ProductionPlans_ProductionDailyLog
         FOREIGN KEY (ProductionPlan_ID)
         REFERENCES dbo.ProductionPlans (ID)
 );
 ```
 
-* **Opis tabeli:** Rejestr postępów prac, służący do monitorowania wykonania planu. Przechowuje informacje o ilości wyprodukowanej w danym dniu oraz o kontroli jakości.
-* **Więzy integralności (Constraints):**
-  * `CK_ProductionDailyLog_QualityStatus`: Pole przyjmuje tylko dwie wartości: `'K'` (Kompletne/Dobra jakość) lub `'F'` (Fail/Odrzut produkcyjny).
-  * `CK_ProductionDailyLog_QuantityNotNegative`: Ilość wyprodukowana nie może być ujemna.
+- **Opis tabeli:** Rejestr postępów prac, służący do monitorowania wykonania planu. Przechowuje informacje o ilości wyprodukowanej w danym dniu oraz o kontroli jakości.
+- **Więzy integralności (Constraints):**
+  - `CK_ProductionDailyLog_QualityStatus`: Pole przyjmuje tylko dwie wartości: `'K'` (Kompletne/Dobra jakość) lub `'F'` (Fail/Odrzut produkcyjny).
+  - `CK_ProductionDailyLog_QuantityNotNegative`: Ilość wyprodukowana nie może być ujemna.
 
 ### Plany produkcyjne (cykliczne bądź wymuszone popytem)
 
@@ -623,10 +636,10 @@ CREATE TABLE dbo.ProductionPlans (
 );
 ```
 
-* **Opis tabeli:** Harmonogram zleceń produkcyjnych. Określa co, ile i na kiedy ma zostać wyprodukowane, wraz z oznaczeniem typu zlecenia.
-* **Więzy integralności (Constraints):**
-  * `CK_ProductionPlans_ProductionType`: Rozróżnia dwa tryby produkcji: `'C'` (Cykliczna/Na magazyn) oraz `'O'` (On-demand/Pod konkretne zamówienie, gdy brakuje towaru).
-  * `CK_ProductionPlans_QuantityNotNegative`: Planowana ilość musi być nieujemna.
+- **Opis tabeli:** Harmonogram zleceń produkcyjnych. Określa co, ile i na kiedy ma zostać wyprodukowane, wraz z oznaczeniem typu zlecenia.
+- **Więzy integralności (Constraints):**
+  - `CK_ProductionPlans_ProductionType`: Rozróżnia dwa tryby produkcji: `'C'` (Cykliczna/Na magazyn) oraz `'O'` (On-demand/Pod konkretne zamówienie, gdy brakuje towaru).
+  - `CK_ProductionPlans_QuantityNotNegative`: Planowana ilość musi być nieujemna.
 
 ### Produkty
 
@@ -650,10 +663,10 @@ CREATE TABLE dbo.Products (
 );
 ```
 
-* **Opis tabeli:** Główna tabela gotowych produktów. Zawiera dane o cenach, kosztach produkcji (wyliczanych), stanach magazynowych oraz maksymalnych mocach przerobowych montażu.
-* **Więzy integralności (Constraints):**
-  * `QuantityNotNegative`: Stan magazynowy produktu nie może spaść poniżej zera.
-  * `AssemblyCapacityNotNegative`: Moc przerobowa (limit produkcyjny) musi być wartością nieujemną.
+- **Opis tabeli:** Główna tabela gotowych produktów. Zawiera dane o cenach, kosztach produkcji (wyliczanych), stanach magazynowych oraz maksymalnych mocach przerobowych montażu.
+- **Więzy integralności (Constraints):**
+  - `QuantityNotNegative`: Stan magazynowy produktu nie może spaść poniżej zera.
+  - `AssemblyCapacityNotNegative`: Moc przerobowa (limit produkcyjny) musi być wartością nieujemną.
 
 ### Statusy zamówień
 
@@ -665,15 +678,14 @@ CREATE TABLE dbo.Status (
 );
 ```
 
-* **Opis tabeli:** Słownik definiujący możliwe statusy zamówienia lub planu produkcyjnego (np. "w trakcie", "zakończone").
+- **Opis tabeli:** Słownik definiujący możliwe statusy zamówienia lub planu produkcyjnego (np. "w trakcie", "zakończone").
 <!-- - Opis:
 
 | Nazwa atrybutu | Typ | Opis/Uwagi |
 | :------------: | :-: | :--------: | --- |
 |   Atrybut 1    |     |            |
 |   Atrybut 2    |     |            |
-|   Atrybut 3    |     |            | -->
-
+|   Atrybut 3    |     |            | --> |
 
 # 3. Widoki, procedury, funkcje i triggery
 
@@ -713,8 +725,8 @@ SELECT
 FROM DiscountPercent;
 ```
 
-* **Opis:** Kompleksowy widok analityczny agregujący pełne dane finansowe każdego zamówienia. Służy do raportowania sprzedaży i wystawiania dokumentów końcowych.
-* **Logika:** Widok realizuje przetwarzanie danych w trzech etapach (CTE):
+- **Opis:** Kompleksowy widok analityczny agregujący pełne dane finansowe każdego zamówienia. Służy do raportowania sprzedaży i wystawiania dokumentów końcowych.
+- **Logika:** Widok realizuje przetwarzanie danych w trzech etapach (CTE):
   1. **Wycena koszyka:** Obliczenie surowej wartości zamówienia na podstawie cen jednostkowych i ilości (przed rabatami).
   2. **Naliczenie rabatu:** Wywołanie logiki biznesowej (funkcja `ObliczZnizke`) dla każdego koszyka w celu ustalenia należnego procentu zniżki.
   3. **Kalkulacja końcowa:** Zestawienie wartości bazowej, wartości udzielonego rabatu (kwotowo i procentowo) oraz ostatecznej kwoty do zapłaty.
@@ -737,8 +749,8 @@ GROUP BY p.ID, p.Name, c.Name
 ORDER BY TotalSoldQuantity DESC;
 ```
 
-* **Opis:** Widok analityczny identyfikujący najlepiej sprzedające się towary. Zwraca listę "Top 3" produktów o największym wolumenie sprzedaży.
-* **Logika:** Agreguje dane ze szczegółów zamówień (`OrderDetails`), sumuje sprzedane sztuki dla każdego produktu i sortuje wynik malejąco, ograniczając go do trzech pierwszych rekordów. Służy do planowania produkcji i działań marketingowych.
+- **Opis:** Widok analityczny identyfikujący najlepiej sprzedające się towary. Zwraca listę "Top 3" produktów o największym wolumenie sprzedaży.
+- **Logika:** Agreguje dane ze szczegółów zamówień (`OrderDetails`), sumuje sprzedane sztuki dla każdego produktu i sortuje wynik malejąco, ograniczając go do trzech pierwszych rekordów. Służy do planowania produkcji i działań marketingowych.
 
 ### Historia zamówień klientów
 
@@ -762,8 +774,8 @@ JOIN OrderDetails od ON od.Order_ID = o.ID
 JOIN Products p ON p.ID = od.Product_ID;
 ```
 
-* **Opis:** Szczegółowy rejestr historyczny transakcji z perspektywy klienta. Prezentuje pełne dane o zamówionych produktach, ich cenach jednostkowych oraz zastosowanych rabatach.
-* **Logika:** Wykonuje wyliczenie "w locie" ostatecznej wartości pozycji (`FinalValue`), uwzględniając ilość, cenę jednostkową oraz przypisany do zamówienia rabat (wzór: `Ilość * Cena * (1 - Rabat)`).
+- **Opis:** Szczegółowy rejestr historyczny transakcji z perspektywy klienta. Prezentuje pełne dane o zamówionych produktach, ich cenach jednostkowych oraz zastosowanych rabatach.
+- **Logika:** Wykonuje wyliczenie "w locie" ostatecznej wartości pozycji (`FinalValue`), uwzględniając ilość, cenę jednostkową oraz przypisany do zamówienia rabat (wzór: `Ilość * Cena * (1 - Rabat)`).
 
 ### Stan magazynowy produktów
 
@@ -781,8 +793,8 @@ FROM Products p
 JOIN Categories c ON c.ID = p.Category_ID;
 ```
 
-* **Opis:** Widok operacyjny prezentujący aktualną dostępność wyrobów gotowych. Łączy dane o produktach z ich kategoriami, ułatwiając przegląd asortymentu.
-* **Logika:** Zwraca kluczowe informacje dla działu sprzedaży: nazwę produktu, kategorię, bieżącą ilość w magazynie, cenę oraz status wycofania ze sprzedaży (`Discontinued`).
+- **Opis:** Widok operacyjny prezentujący aktualną dostępność wyrobów gotowych. Łączy dane o produktach z ich kategoriami, ułatwiając przegląd asortymentu.
+- **Logika:** Zwraca kluczowe informacje dla działu sprzedaży: nazwę produktu, kategorię, bieżącą ilość w magazynie, cenę oraz status wycofania ze sprzedaży (`Discontinued`).
 
 ### Stan magazynowy części
 
@@ -799,8 +811,8 @@ FROM Parts p
 JOIN PartTypes pt ON p.PartType_ID = pt.ID;
 ```
 
-* **Opis:** Raport inwentaryzacyjny dla surowców i półproduktów. Służy do monitorowania zapasów niezbędnych do produkcji.
-* **Logika:** Prezentuje listę części wraz z ich typem (np. metal, plastik) oraz aktualną ilością i ceną zakupu. Jest podstawą do generowania zamówień u dostawców.
+- **Opis:** Raport inwentaryzacyjny dla surowców i półproduktów. Służy do monitorowania zapasów niezbędnych do produkcji.
+- **Logika:** Prezentuje listę części wraz z ich typem (np. metal, plastik) oraz aktualną ilością i ceną zakupu. Jest podstawą do generowania zamówień u dostawców.
 
 ### Koszty produkcji - Widok Bazowy
 
@@ -823,11 +835,11 @@ JOIN Products p ON p.ID = pp.Product_ID
 JOIN Categories c ON c.ID = p.Category_ID;
 ```
 
-* **Opis:** Techniczny widok pomocniczy (warstwa pośrednia), stanowiący fundament dla wszystkich raportów kosztowych. Nie jest przeznaczony do bezpośredniego raportowania, lecz do zasilania innych widoków.
-* **Logika:**
-  * Wykorzystuje funkcję skalarną `dbo.ObliczKosztProdukcji` do ustalenia jednostkowego kosztu wytworzenia.
-  * Oblicza całkowity koszt dla danej partii produkcyjnej (`Ilość * Koszt Jednostkowy`).
-  * Dokonuje dekompozycji daty zakończenia produkcji na rok, miesiąc i kwartał, co upraszcza późniejsze grupowanie danych.
+- **Opis:** Techniczny widok pomocniczy (warstwa pośrednia), stanowiący fundament dla wszystkich raportów kosztowych. Nie jest przeznaczony do bezpośredniego raportowania, lecz do zasilania innych widoków.
+- **Logika:**
+  - Wykorzystuje funkcję skalarną `dbo.ObliczKosztProdukcji` do ustalenia jednostkowego kosztu wytworzenia.
+  - Oblicza całkowity koszt dla danej partii produkcyjnej (`Ilość * Koszt Jednostkowy`).
+  - Dokonuje dekompozycji daty zakończenia produkcji na rok, miesiąc i kwartał, co upraszcza późniejsze grupowanie danych.
 
 ### Raporty kosztów produkcji (Agregacje czasowe)
 
@@ -912,8 +924,8 @@ JOIN Products p ON p.ID = pp.Product_ID
 JOIN Status s ON s.ID = pp.Status_ID;
 ```
 
-* **Opis:** Widok operacyjny dla kierowników zmiany. Prezentuje bieżącą kolejkę zadań produkcyjnych.
-* **Logika:** Zestawia plany produkcyjne z nazwami produktów i czytelnymi statusami (np. "W trakcie", "Oczekujące"), pomijając zbędne dane analityczne.
+- **Opis:** Widok operacyjny dla kierowników zmiany. Prezentuje bieżącą kolejkę zadań produkcyjnych.
+- **Logika:** Zestawia plany produkcyjne z nazwami produktów i czytelnymi statusami (np. "W trakcie", "Oczekujące"), pomijając zbędne dane analityczne.
 
 ### Raport planów produkcyjnych
 
@@ -936,8 +948,8 @@ JOIN Categories c ON c.ID = p.Category_ID
 JOIN Status s ON s.ID = pp.Status_ID;
 ```
 
-* **Opis:** Rozbudowana wersja widoku operacyjnego, wzbogacona o wymiary czasowe (rok, miesiąc, kwartał). Służy do analizy wydajności i terminowości działu produkcji.
-* **Logika:** Umożliwia filtrowanie historii produkcji po okresach oraz typie zlecenia (Cykliczne vs Na żądanie).
+- **Opis:** Rozbudowana wersja widoku operacyjnego, wzbogacona o wymiary czasowe (rok, miesiąc, kwartał). Służy do analizy wydajności i terminowości działu produkcji.
+- **Logika:** Umożliwia filtrowanie historii produkcji po okresach oraz typie zlecenia (Cykliczne vs Na żądanie).
 
 ### Raport sprzedaży
 
@@ -964,11 +976,11 @@ GROUP BY
     p.Name;
 ```
 
-* **Opis:** Zaawansowany widok analityczny służący do monitorowania przychodów firmy.
-* **Logika:**
-  * Agreguje dane sprzedażowe do poziomu Tygodnia, Miesiąca i Roku.
-  * Oblicza rzeczywisty przychód (`Revenue`), uwzględniając udzielone rabaty.
-  * Grupuje wyniki według kategorii i produktów, co pozwala na badanie sezonowości sprzedaży oraz efektywności poszczególnych grup towarowych.
+- **Opis:** Zaawansowany widok analityczny służący do monitorowania przychodów firmy.
+- **Logika:**
+  - Agreguje dane sprzedażowe do poziomu Tygodnia, Miesiąca i Roku.
+  - Oblicza rzeczywisty przychód (`Revenue`), uwzględniając udzielone rabaty.
+  - Grupuje wyniki według kategorii i produktów, co pozwala na badanie sezonowości sprzedaży oraz efektywności poszczególnych grup towarowych.
 
 ## Procedury/funkcje
 
@@ -982,22 +994,23 @@ CREATE TYPE dbo.OrderProductType AS TABLE
 );
 ```
 
-* **Opis:** User-defined table type umożliwiający przekazanie listy produktów jako parametr do procedury.
-* **Zastosowanie:** Używany w procedurze `AddOrder` do obsługi całego koszyka zakupowego w jednym wywołaniu. Pozwala na przekazanie wielu produktów jednocześnie zamiast wywoływania procedury osobno dla każdego produktu.
-* **Korzyści:**
-  * **Atomowość transakcji:** Całe zamówienie (wszystkie produkty) jest przetwarzane w jednej transakcji.
-  * **Wydajność:** Znacząco szybsze niż wielokrotne wywołania procedury w pętli.
-  * **Prostota kodu klienta:** Aplikacja może przekazać tablicę produktów bez konieczności iteracji.
-  * **Spójność danych:** Gwarancja, że albo wszystkie produkty zostaną dodane do zamówienia, albo żadne (w przypadku błędu).
+- **Opis:** User-defined table type umożliwiający przekazanie listy produktów jako parametr do procedury.
+- **Zastosowanie:** Używany w procedurze `AddOrder` do obsługi całego koszyka zakupowego w jednym wywołaniu. Pozwala na przekazanie wielu produktów jednocześnie zamiast wywoływania procedury osobno dla każdego produktu.
+- **Korzyści:**
+  - **Atomowość transakcji:** Całe zamówienie (wszystkie produkty) jest przetwarzane w jednej transakcji.
+  - **Wydajność:** Znacząco szybsze niż wielokrotne wywołania procedury w pętli.
+  - **Prostota kodu klienta:** Aplikacja może przekazać tablicę produktów bez konieczności iteracji.
+  - **Spójność danych:** Gwarancja, że albo wszystkie produkty zostaną dodane do zamówienia, albo żadne (w przypadku błędu).
 
 **Przykład użycia:**
+
 ```SQL
 -- Deklaracja zmiennej typu tabelarycznego
 DECLARE @Koszyk dbo.OrderProductType;
 
 -- Wypełnienie koszyka produktami
 INSERT INTO @Koszyk (Product_ID, Quantity)
-VALUES 
+VALUES
     (1, 2),   -- Produkt ID=1, ilość=2
     (3, 1),   -- Produkt ID=3, ilość=1
     (7, 5);   -- Produkt ID=7, ilość=5
@@ -1034,9 +1047,8 @@ BEGIN
 END
 ```
 
-
-* **Opis:** Oblicza całkowity koszt materiałowy potrzebny do wytworzenia jednej sztuki produktu.
-* **Logika biznesowa:** Funkcja iteruje po strukturze produktu, sumując iloczyny cen zakupu części i ich wymaganej ilości. Wynik stanowi bazę do ustalania ceny sprzedaży. Zabezpieczona przed wartościami `NULL` (zwraca 0 w przypadku braku zdefiniowanych części).
+- **Opis:** Oblicza całkowity koszt materiałowy potrzebny do wytworzenia jednej sztuki produktu.
+- **Logika biznesowa:** Funkcja iteruje po strukturze produktu, sumując iloczyny cen zakupu części i ich wymaganej ilości. Wynik stanowi bazę do ustalania ceny sprzedaży. Zabezpieczona przed wartościami `NULL` (zwraca 0 w przypadku braku zdefiniowanych części).
 
 ### Funkcja: Cena sprzedaży
 
@@ -1060,8 +1072,8 @@ BEGIN
 END
 ```
 
-* **Opis:** Automatycznie generuje sugerowaną cenę detaliczną produktu, zapewniając spójność marży w całym asortymencie.
-* **Logika biznesowa:** Pobiera wyliczony wcześniej koszt produkcji i narzuca na niego globalną marżę zdefiniowaną w tabeli konfiguracyjnej `Parameters`. Dzięki temu zmiana marży w jednym miejscu w systemie automatycznie aktualizuje sugerowane ceny wszystkich produktów.
+- **Opis:** Automatycznie generuje sugerowaną cenę detaliczną produktu, zapewniając spójność marży w całym asortymencie.
+- **Logika biznesowa:** Pobiera wyliczony wcześniej koszt produkcji i narzuca na niego globalną marżę zdefiniowaną w tabeli konfiguracyjnej `Parameters`. Dzięki temu zmiana marży w jednym miejscu w systemie automatycznie aktualizuje sugerowane ceny wszystkich produktów.
 
 ### Funkcja: Wartość koszyka
 
@@ -1080,8 +1092,8 @@ BEGIN
 END
 ```
 
-* **Opis:** Szybkie obliczenie wartości brutto pozycji znajdujących się w danym zamówieniu.
-* **Logika biznesowa:** Sumuje iloczyn `Ilość * Cena Jednostkowa` dla wszystkich linii danego zamówienia. Stanowi punkt wyjścia do obliczeń rabatowych.
+- **Opis:** Szybkie obliczenie wartości brutto pozycji znajdujących się w danym zamówieniu.
+- **Logika biznesowa:** Sumuje iloczyn `Ilość * Cena Jednostkowa` dla wszystkich linii danego zamówienia. Stanowi punkt wyjścia do obliczeń rabatowych.
 
 ### Funkcja: Algorytm rabatowy
 
@@ -1123,12 +1135,12 @@ BEGIN
 END;
 ```
 
-* **Opis:** Mechanizm wyliczania dynamicznego rabatu w zależności od wartości zamówienia.
-* **Logika biznesowa:** Implementuje progresywny system zniżek oparty na parametrach globalnych:
-  * Sprawdza, czy wartość zamówienia przekracza próg minimalny (`DiscountThreshold`).
-  * Za każde pełne 100zł powyżej progu dolicza określony procent rabatu (`DiscountStepValue`).
-  * Pilnuje, aby wyliczona zniżka nie przekroczyła ustalonego odgórnie limitu (`MaxDiscount`), chroniąc rentowność sprzedaży.
-  
+- **Opis:** Mechanizm wyliczania dynamicznego rabatu w zależności od wartości zamówienia.
+- **Logika biznesowa:** Implementuje progresywny system zniżek oparty na parametrach globalnych:
+  - Sprawdza, czy wartość zamówienia przekracza próg minimalny (`DiscountThreshold`).
+  - Za każde pełne 100zł powyżej progu dolicza określony procent rabatu (`DiscountStepValue`).
+  - Pilnuje, aby wyliczona zniżka nie przekroczyła ustalonego odgórnie limitu (`MaxDiscount`), chroniąc rentowność sprzedaży.
+
 ### Procedura: Dodaj kategorię
 
 ```SQL
@@ -1139,8 +1151,8 @@ AS
     VALUES (@Name);
 ```
 
-* **Opis:** Prosta procedura administracyjna służąca do rozbudowy słownika kategorii produktów.
-* **Działanie:** Wstawia nowy rekord do tabeli `Categories`, przyjmując jako parametr nazwę kategorii.
+- **Opis:** Prosta procedura administracyjna służąca do rozbudowy słownika kategorii produktów.
+- **Działanie:** Wstawia nowy rekord do tabeli `Categories`, przyjmując jako parametr nazwę kategorii.
 
 ### Procedura: Rejestracja klienta
 
@@ -1158,18 +1170,18 @@ CREATE PROCEDURE dbo.AddClient
 AS
 BEGIN
     INSERT INTO dbo.Clients (
-        Name, Email, PhoneNumber, NIP, 
+        Name, Email, PhoneNumber, NIP,
         Address, PostalCode, City, Country, ClientType
     )
     VALUES (
-        @Name, 
-        @Email, 
-        @PhoneNumber, 
+        @Name,
+        @Email,
+        @PhoneNumber,
         @NIP,
-        @Address, 
-        @PostalCode, 
-        @City, 
-        @Country, 
+        @Address,
+        @PostalCode,
+        @City,
+        @Country,
         CASE
             WHEN @NIP IS NOT NULL AND LEN(@NIP) > 0 THEN 'F'
             ELSE 'I'
@@ -1178,8 +1190,8 @@ BEGIN
 END
 ```
 
-* **Opis:** Procedura służąca do wprowadzania nowych kontrahentów do systemu. Obsługuje zarówno klientów indywidualnych, jak i firmy.
-* **Logika biznesowa:** Przyjmuje zestaw danych teleadresowych. Pola opcjonalne (takie jak NIP czy Email) mogą przyjmować wartość `NULL`. Procedura jest wykorzystywana zarówno manualnie przez dział sprzedaży, jak i automatycznie przez procedurę składania zamówienia (`AddOrder`), gdy wykryty zostanie nowy klient.
+- **Opis:** Procedura służąca do wprowadzania nowych kontrahentów do systemu. Obsługuje zarówno klientów indywidualnych, jak i firmy.
+- **Logika biznesowa:** Przyjmuje zestaw danych teleadresowych. Pola opcjonalne (takie jak NIP czy Email) mogą przyjmować wartość `NULL`. Procedura jest wykorzystywana zarówno manualnie przez dział sprzedaży, jak i automatycznie przez procedurę składania zamówienia (`AddOrder`), gdy wykryty zostanie nowy klient.
 
 ### Procedura: Zarządzanie dniami wolnymi
 
@@ -1195,8 +1207,8 @@ BEGIN
 END
 ```
 
-* **Opis:** Narzędzie do zarządzania kalendarzem produkcyjnym firmy. Definiuje okresy przestoju (święta, awarie, przerwy techniczne).
-* **Logika:** Wstawia rekord do tabeli `DaysOff`. Posiada mechanizm domyślnej wartości – jeśli nie podano daty końcowej (`EndDate`), system przyjmuje, że przerwa trwa jeden dzień (równa się dacie początkowej).
+- **Opis:** Narzędzie do zarządzania kalendarzem produkcyjnym firmy. Definiuje okresy przestoju (święta, awarie, przerwy techniczne).
+- **Logika:** Wstawia rekord do tabeli `DaysOff`. Posiada mechanizm domyślnej wartości – jeśli nie podano daty końcowej (`EndDate`), system przyjmuje, że przerwa trwa jeden dzień (równa się dacie początkowej).
 
 ### Procedura: Definicja składu produktu
 
@@ -1210,8 +1222,8 @@ AS
     VALUES (@ProductID, @PartID, @Quantity);
 ```
 
-* **Opis:** Procedura techniczna służąca do definiowania struktury materiałowej produktu. Umożliwia przypisanie konkretnych komponentów do wyrobu gotowego.
-* **Działanie:** Wstawia rekord do tabeli łącznikowej `ProductParts`. Określa, jaki surowiec (identyfikowany przez `PartID`) i w jakiej ilości (`Quantity`) jest niezbędny do wytworzenia jednej sztuki danego produktu (`ProductID`). Wielokrotne wywołanie tej procedury dla jednego produktu pozwala zbudować jego kompletną listę części.
+- **Opis:** Procedura techniczna służąca do definiowania struktury materiałowej produktu. Umożliwia przypisanie konkretnych komponentów do wyrobu gotowego.
+- **Działanie:** Wstawia rekord do tabeli łącznikowej `ProductParts`. Określa, jaki surowiec (identyfikowany przez `PartID`) i w jakiej ilości (`Quantity`) jest niezbędny do wytworzenia jednej sztuki danego produktu (`ProductID`). Wielokrotne wywołanie tej procedury dla jednego produktu pozwala zbudować jego kompletną listę części.
 
 ### Procedura: Złóż zamówienie
 
@@ -1429,14 +1441,14 @@ BEGIN
 END
 ```
 
-* **Opis:** Kluczowa procedura transakcyjna realizująca proces sprzedaży. Jest to najbardziej złożony algorytm w systemie, integrujący sprzedaż z magazynem i produkcją.
-* **Parametry:** Przyjmuje dane klienta oraz listę produktów (jako typ tabelaryczny `OrderProductType`), co pozwala na obsłużenie całego koszyka w jednym wywołaniu.
-* **Logika biznesowa:**
+- **Opis:** Kluczowa procedura transakcyjna realizująca proces sprzedaży. Jest to najbardziej złożony algorytm w systemie, integrujący sprzedaż z magazynem i produkcją.
+- **Parametry:** Przyjmuje dane klienta oraz listę produktów (jako typ tabelaryczny `OrderProductType`), co pozwala na obsłużenie całego koszyka w jednym wywołaniu.
+- **Logika biznesowa:**
   1. **Identyfikacja klienta:** Sprawdza, czy klient istnieje w bazie. Jeśli nie – automatycznie tworzy rekord z danymi nowego klienta.
   2. **Rejestracja zamówienia:** Tworzy nagłówek zamówienia i wpisuje pozycje do `OrderDetails`, pobierając aktualne ceny z tabeli `Products`.
   3. **Weryfikacja magazynu (Pętla):** Dla każdego produktu sprawdza dostępność (`Quantity`):
-     * **Towar dostępny:** Rezerwuje towar (zmniejsza stan magazynowy) i ustawia szybką datę realizacji.
-     * **Brak towaru:**
+     - **Towar dostępny:** Rezerwuje towar (zmniejsza stan magazynowy) i ustawia szybką datę realizacji.
+     - **Brak towaru:**
        1. Konsumuje resztki z magazynu (jeśli są).
        2. Oblicza brakującą ilość.
        3. Na podstawie mocy przerobowej (`AssemblyCapacity`) wylicza potrzebny czas produkcji.
@@ -1479,8 +1491,8 @@ BEGIN
 END
 ```
 
-* **Opis:** Funkcja pomocnicza służąca do precyzyjnego planowania terminów.
-* **Logika:** Oblicza datę zakończenia prac, dodając do daty startowej określoną liczbę dni roboczych. Algorytm w pętli sprawdza każdy kolejny dzień w tabeli `DaysOff` – jeśli dzień jest wolny, nie jest wliczany do czasu realizacji. Zapewnia to realne terminy wykonania zleceń.
+- **Opis:** Funkcja pomocnicza służąca do precyzyjnego planowania terminów.
+- **Logika:** Oblicza datę zakończenia prac, dodając do daty startowej określoną liczbę dni roboczych. Algorytm w pętli sprawdza każdy kolejny dzień w tabeli `DaysOff` – jeśli dzień jest wolny, nie jest wliczany do czasu realizacji. Zapewnia to realne terminy wykonania zleceń.
 
 ### Procedura: Dziennik produkcji
 
@@ -1495,8 +1507,8 @@ AS
     VALUES (@ProductionPlanID, @DailyLog, @Quantity, @QualityStatus);
 ```
 
-* **Opis:** Procedura operacyjna dla pracowników produkcji/magazynu.
-* **Działanie:** Rejestruje postęp prac nad konkretnym planem produkcyjnym. Zapisuje ilość wyprodukowaną w danym dniu, notatkę (log) oraz status kontroli jakości (`'K'` - OK, `'F'` - Błąd).
+- **Opis:** Procedura operacyjna dla pracowników produkcji/magazynu.
+- **Działanie:** Rejestruje postęp prac nad konkretnym planem produkcyjnym. Zapisuje ilość wyprodukowaną w danym dniu, notatkę (log) oraz status kontroli jakości (`'K'` - OK, `'F'` - Błąd).
 
 ### Procedura: Wycofanie produktu
 
@@ -1509,8 +1521,8 @@ AS
     WHERE ID = @ProductID;
 ```
 
-* **Opis:** Procedura realizująca tzw. "miękkie usuwanie" (soft delete).
-* **Działanie:** Zamiast fizycznie usuwać rekord (co naruszyłoby więzy integralności historycznych zamówień), ustawia flagę `Discontinued` na 1. Produkt przestaje być widoczny w ofercie, ale pozostaje w historii.
+- **Opis:** Procedura realizująca tzw. "miękkie usuwanie" (soft delete).
+- **Działanie:** Zamiast fizycznie usuwać rekord (co naruszyłoby więzy integralności historycznych zamówień), ustawia flagę `Discontinued` na 1. Produkt przestaje być widoczny w ofercie, ale pozostaje w historii.
 
 ### Procedury: Konfiguracja parametrów globalnych
 
@@ -1544,10 +1556,10 @@ AS
 
 Zestaw procedur administracyjnych służących do zarządzania tabelą `Parameters` (singletonem konfiguracyjnym). Umożliwiają zmianę polityki cenowej "na żywo", bez konieczności modyfikacji kodu systemu:
 
-* **`dbo.UpdateMargin`:** Zmienia globalny narzut (marżę) na produkty, co wpływa na sugerowane ceny sprzedaży.
-* **`dbo.UpdateDiscountThreshold`:** Ustawia minimalną kwotę zamówienia, od której naliczany jest rabat.
-* **`dbo.UpdateDiscountStepValue`:** Określa, o ile procent rośnie rabat za każde przekroczenie progu kwotowego.
-* **`dbo.UpdateMaxDiscount`:** Definiuje górny limit możliwego do uzyskania rabatu (bezpiecznik finansowy).
+- **`dbo.UpdateMargin`:** Zmienia globalny narzut (marżę) na produkty, co wpływa na sugerowane ceny sprzedaży.
+- **`dbo.UpdateDiscountThreshold`:** Ustawia minimalną kwotę zamówienia, od której naliczany jest rabat.
+- **`dbo.UpdateDiscountStepValue`:** Określa, o ile procent rośnie rabat za każde przekroczenie progu kwotowego.
+- **`dbo.UpdateMaxDiscount`:** Definiuje górny limit możliwego do uzyskania rabatu (bezpiecznik finansowy).
 
 ## Triggery
 
@@ -1565,7 +1577,7 @@ AFTER UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+
     -- Sprawdzenie niedozwolonych przejść statusów
     -- P = Planowany, O = W trakcie, Z = Zakończony, X = Anulowany
     IF EXISTS (
@@ -1598,20 +1610,20 @@ END;
 W systemie wdrożono model bezpieczeństwa oparty na rolach, co zapewnia separację obowiązków i minimalizację ryzyka nieuprawnionego dostępu do danych wrażliwych.
 
 1. **Rola Zarządcza (`Rola_Zarzad`)**
-   * **Przeznaczenie:** Dla kadry kierowniczej i analityków biznesowych.
-   * **Uprawnienia:** Wyłącznie odczyt (`SELECT`) wszystkich danych w schemacie. Umożliwia generowanie raportów bez ryzyka przypadkowej modyfikacji danych operacyjnych.
+   - **Przeznaczenie:** Dla kadry kierowniczej i analityków biznesowych.
+   - **Uprawnienia:** Wyłącznie odczyt (`SELECT`) wszystkich danych w schemacie. Umożliwia generowanie raportów bez ryzyka przypadkowej modyfikacji danych operacyjnych.
 
 2. **Rola Sprzedażowa (`Rola_Sprzedaz`)**
-   * **Przeznaczenie:** Dla pracowników obsługi klienta.
-   * **Uprawnienia:** Pełna edycja danych klientów i zamówień. Dostęp do katalogu produktów jest ograniczony do odczytu (sprawdzanie dostępności i cen), co uniemożliwia sprzedawcom manipulację cenami bazowymi.
+   - **Przeznaczenie:** Dla pracowników obsługi klienta.
+   - **Uprawnienia:** Pełna edycja danych klientów i zamówień. Dostęp do katalogu produktów jest ograniczony do odczytu (sprawdzanie dostępności i cen), co uniemożliwia sprzedawcom manipulację cenami bazowymi.
 
 3. **Rola Planistyczna (`Rola_Planista`)**
-   * **Przeznaczenie:** Dla managerów produkcji.
-   * **Uprawnienia:** Pełna kontrola nad definicjami produktów, recepturami (BOM), planami produkcyjnymi oraz globalnymi parametrami systemu (marże, progi rabatowe). Jest to rola o najwyższym wpływie na logikę biznesową systemu.
+   - **Przeznaczenie:** Dla managerów produkcji.
+   - **Uprawnienia:** Pełna kontrola nad definicjami produktów, recepturami (BOM), planami produkcyjnymi oraz globalnymi parametrami systemu (marże, progi rabatowe). Jest to rola o najwyższym wpływie na logikę biznesową systemu.
 
 4. **Rola Magazynowa (`Rola_Magazyn`)**
-   * **Przeznaczenie:** Dla pracowników magazynu i hali produkcyjnej.
-   * **Uprawnienia:** Zarządzanie stanami surowców (`Parts`) oraz raportowanie postępów produkcji (`ProductionDailyLog`). Rola posiada specyficzne uprawnienie do aktualizacji *tylko* stanu magazynowego produktów gotowych (`UPDATE ON Products (Quantity)`), bez możliwości zmiany ich nazw czy cen.
+   - **Przeznaczenie:** Dla pracowników magazynu i hali produkcyjnej.
+   - **Uprawnienia:** Zarządzanie stanami surowców (`Parts`) oraz raportowanie postępów produkcji (`ProductionDailyLog`). Rola posiada specyficzne uprawnienie do aktualizacji _tylko_ stanu magazynowego produktów gotowych (`UPDATE ON Products (Quantity)`), bez możliwości zmiany ich nazw czy cen.
 
 ### Utworzenie ról i przypisanie uprawnień
 
@@ -1651,6 +1663,7 @@ GRANT UPDATE (Quantity) ON Products TO [Rola_Magazyn];
 ```
 
 ### Przykładowi użytkownicy
+
 ```SQL
 -- 1. Użytkownik dla Zarządu
 CREATE USER [User_Analityk] WITHOUT LOGIN;
@@ -1675,48 +1688,48 @@ ALTER ROLE [Rola_Magazyn] ADD MEMBER [User_Magazynier];
 
 ```SQL
 -- Tabela: OrderDetails
-CREATE INDEX IX_OrderDetails_OrderID 
+CREATE INDEX IX_OrderDetails_OrderID
     ON dbo.OrderDetails(Order_ID);
 
-CREATE INDEX IX_OrderDetails_ProductID 
+CREATE INDEX IX_OrderDetails_ProductID
     ON dbo.OrderDetails(Product_ID);
 
 -- Tabela: Orders
-CREATE INDEX IX_Orders_ClientID 
+CREATE INDEX IX_Orders_ClientID
     ON dbo.Orders(Client_ID);
 
-CREATE INDEX IX_Orders_StatusID 
+CREATE INDEX IX_Orders_StatusID
     ON dbo.Orders(Status_ID);
 
 -- Tabela: Products
-CREATE INDEX IX_Products_CategoryID 
+CREATE INDEX IX_Products_CategoryID
     ON dbo.Products(Category_ID);
 
 -- Tabela: ProductParts
-CREATE INDEX IX_ProductParts_PartID 
+CREATE INDEX IX_ProductParts_PartID
     ON dbo.ProductParts(Part_ID);
 -- Uwaga: Product_ID już ma indeks jako część klucza złożonego PK
 
 -- Tabela: Parts
-CREATE INDEX IX_Parts_PartTypeID 
+CREATE INDEX IX_Parts_PartTypeID
     ON dbo.Parts(PartType_ID);
 
 -- Tabela: ProductionPlans
-CREATE INDEX IX_ProductionPlans_ProductID 
+CREATE INDEX IX_ProductionPlans_ProductID
     ON dbo.ProductionPlans(Product_ID);
 
-CREATE INDEX IX_ProductionPlans_StatusID 
+CREATE INDEX IX_ProductionPlans_StatusID
     ON dbo.ProductionPlans(Status_ID);
 
 -- Tabela: ProductionAllocations
-CREATE INDEX IX_ProductionAllocations_ProductionPlansID 
+CREATE INDEX IX_ProductionAllocations_ProductionPlansID
     ON dbo.ProductionAllocations(ProductionPlans_ID);
 
-CREATE INDEX IX_ProductionAllocations_OrderDetailsID 
+CREATE INDEX IX_ProductionAllocations_OrderDetailsID
     ON dbo.ProductionAllocations(OrderDetails_ID);
 
 -- Tabela: ProductionDailyLog
-CREATE INDEX IX_ProductionDailyLog_ProductionPlanID 
+CREATE INDEX IX_ProductionDailyLog_ProductionPlanID
     ON dbo.ProductionDailyLog(ProductionPlan_ID);
 ```
 
@@ -1728,32 +1741,32 @@ Kolumny często używane do filtrowania danych wymagają dedykowanych indeksów 
 
 ```SQL
 -- Nazwa klienta - często wyszukiwana podczas składania zamówień
-CREATE INDEX IX_Clients_Name 
+CREATE INDEX IX_Clients_Name
     ON dbo.Clients(Name);
 
 -- Email klienta - używany do identyfikacji w procedurze AddOrder
-CREATE INDEX IX_Clients_Email 
+CREATE INDEX IX_Clients_Email
     ON dbo.Clients(Email);
 
 -- NIP - wyszukiwanie klientów firmowych
-CREATE INDEX IX_Clients_NIP 
-    ON dbo.Clients(NIP) 
+CREATE INDEX IX_Clients_NIP
+    ON dbo.Clients(NIP)
     WHERE NIP IS NOT NULL;  -- indeks filtrowany (oszczędność miejsca)
 
 -- Typ klienta - segregacja raportów
-CREATE INDEX IX_Clients_ClientType 
+CREATE INDEX IX_Clients_ClientType
     ON dbo.Clients(ClientType);
 
 -- Status produktu (wycofany/aktywny) - filtrowanie oferty
-CREATE INDEX IX_Products_Discontinued 
+CREATE INDEX IX_Products_Discontinued
     ON dbo.Products(Discontinued);
 
 -- Typ produkcji - rozróżnienie produkcji cyklicznej i na zamówienie
-CREATE INDEX IX_ProductionPlans_ProductionType 
+CREATE INDEX IX_ProductionPlans_ProductionType
     ON dbo.ProductionPlans(ProductionType);
 
 -- Status kontroli jakości w logach produkcyjnych
-CREATE INDEX IX_ProductionDailyLog_QualityStatus 
+CREATE INDEX IX_ProductionDailyLog_QualityStatus
     ON dbo.ProductionDailyLog(QualityStatus);
 ```
 
@@ -1765,23 +1778,23 @@ System raportowy intensywnie wykorzystuje kolumny dat do agregacji i filtrowania
 
 ```SQL
 -- Data zamówienia - podstawa raportów sprzedaży
-CREATE INDEX IX_Orders_OrderDate 
+CREATE INDEX IX_Orders_OrderDate
     ON dbo.Orders(OrderDate);
 
 -- Data zakończenia zamówienia - monitoring terminowości
-CREATE INDEX IX_Orders_EndDate 
+CREATE INDEX IX_Orders_EndDate
     ON dbo.Orders(EndDate);
 
 -- Data zakończenia planu produkcji - planowanie harmonogramów
-CREATE INDEX IX_ProductionPlans_EndDate 
+CREATE INDEX IX_ProductionPlans_EndDate
     ON dbo.ProductionPlans(EndDate);
 
 -- Data wpisu w dzienniku produkcji - monitoring postępów
-CREATE INDEX IX_ProductionDailyLog_Date 
+CREATE INDEX IX_ProductionDailyLog_Date
     ON dbo.ProductionDailyLog(Date);
 
 -- Zakres dni wolnych - weryfikacja dostępności w funkcji CalculateEndDate
-CREATE INDEX IX_DaysOff_DateRange 
+CREATE INDEX IX_DaysOff_DateRange
     ON dbo.DaysOff(StartDate, EndDate);
 ```
 
