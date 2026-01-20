@@ -86,18 +86,6 @@ Autorzy:
   - [Indeksy na klucze obce](#indeksy-na-klucze-obce)
   - [Indeksy na kolumny w klauzulach WHERE i JOIN](#indeksy-na-kolumny-w-klauzulach-where-i-join)
   - [Indeksy na daty dla raportów](#indeksy-na-daty-dla-raportów)
-  - [Indeksy kompozytowe](#indeksy-kompozytowe)
-- [6. Przykładowe dane testowe](#6-przykładowe-dane-testowe)
-  - [Sposób generacji danych](#sposób-generacji-danych)
-  - [Skrypty INSERT](#skrypty-insert)
-    - [Kategorie produktów i części](#kategorie-produktów-i-części)
-    - [Klienci](#klienci)
-    - [Części](#części)
-    - [Produkty](#produkty)
-    - [Skład produktów](#skład-produktów)
-    - [Parametry globalne](#parametry-globalne)
-    - [Zamówienia](#zamówienia)
-    - [Plany produkcyjne](#plany-produkcyjne)
 
 ---
 
@@ -288,25 +276,21 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 - Jeden klient może złożyć wiele zamówień
 - Każde zamówienie musi być przypisane do dokładnie jednego klienta
 - Klucz obcy: `Orders.Client_ID` → `Clients.ID`
-- Umożliwia śledzenie historii zakupów klienta
 
 **Orders → OrderDetails** (1:N)
 - Jedno zamówienie składa się z wielu pozycji (produktów)
 - Każda pozycja należy do dokładnie jednego zamówienia
 - Klucz obcy: `OrderDetails.Order_ID` → `Orders.ID`
-- Realizuje wzorzec "nagłówek-szczegóły" zamówienia
 
 **Products → OrderDetails** (1:N)
 - Jeden produkt może występować w wielu zamówieniach
 - Każda pozycja zamówienia dotyczy dokładnie jednego produktu
 - Klucz obcy: `OrderDetails.Product_ID` → `Products.ID`
-- Przechowuje historyczną cenę (snapshot) w momencie zamówienia
 
 **Status → Orders** (1:N)
 - Status może być przypisany do wielu zamówień
 - Każde zamówienie ma dokładnie jeden status
 - Klucz obcy: `Orders.Status_ID` → `Status.ID`
-- Śledzenie etapu realizacji zamówienia
 
 #### 2. Relacje produktów i części
 
@@ -314,7 +298,6 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 - Jedna kategoria grupuje wiele produktów
 - Każdy produkt należy do dokładnie jednej kategorii
 - Klucz obcy: `Products.Category_ID` → `Categories.ID`
-- Klasyfikacja asortymentu
 
 **Products ↔ Parts** (M:N poprzez ProductParts)
 - Jeden produkt składa się z wielu części
@@ -322,14 +305,11 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 - Tabela łącznikowa: `ProductParts`
   - Klucz obcy: `ProductParts.Product_ID` → `Products.ID`
   - Klucz obcy: `ProductParts.Part_ID` → `Parts.ID`
-  - Dodatkowy atrybut: `Quantity` (ilość części potrzebna do produkcji 1 sztuki produktu)
-- Definiuje recepturę produkcyjną (BOM)
 
 **PartTypes → Parts** (1:N)
 - Jeden typ części klasyfikuje wiele konkretnych części
 - Każda część należy do dokładnie jednego typu
 - Klucz obcy: `Parts.PartType_ID` → `PartTypes.ID`
-- Kategoryzacja surowców (np. metal, drewno, plastik)
 
 #### 3. Relacje produkcyjne
 
@@ -337,19 +317,16 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 - Dla jednego produktu może istnieć wiele planów produkcyjnych
 - Każdy plan dotyczy dokładnie jednego produktu
 - Klucz obcy: `ProductionPlans.Product_ID` → `Products.ID`
-- Harmonogramowanie wytwarzania
 
 **Status → ProductionPlans** (1:N)
 - Status może być przypisany do wielu planów produkcyjnych
 - Każdy plan ma dokładnie jeden status
 - Klucz obcy: `ProductionPlans.Status_ID` → `Status.ID`
-- Monitorowanie postępu produkcji
 
 **ProductionPlans → ProductionDailyLog** (1:N)
 - Jeden plan produkcyjny ma wiele wpisów dziennych
 - Każdy wpis dziennika dotyczy dokładnie jednego planu
 - Klucz obcy: `ProductionDailyLog.ProductionPlan_ID` → `ProductionPlans.ID`
-- Szczegółowe raportowanie postępów
 
 #### 4. Relacje alokacji produkcji do zamówień
 
@@ -360,7 +337,6 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
   - Klucz obcy: `ProductionAllocations.ProductionPlans_ID` → `ProductionPlans.ID`
   - Klucz obcy: `ProductionAllocations.OrderDetails_ID` → `OrderDetails.ID`
   - Dodatkowy atrybut: `QuantityAllocated` (ile sztuk z tego planu jest zarezerwowane)
-- Umożliwia "twardą rezerwację" produktów będących w trakcie produkcji pod konkretne zamówienia
 
 #### 5. Relacje konfiguracyjne
 
@@ -372,22 +348,6 @@ System opiera się na modelu relacyjnym składającym się z 14 tabel połączon
 **DaysOff** (słownik)
 - Niezależna tabela przechowująca dni wolne od pracy
 - Wykorzystywana przez funkcję `CalculateEndDate` do pomijania dni nieroboczych
-- Brak bezpośrednich relacji FK
-
-### Kluczowe wzorce projektowe
-
-1. **Wzorzec Master-Detail**: `Orders` ↔ `OrderDetails`
-2. **Wzorzec Many-to-Many z atrybutami**: `Products` ↔ `Parts` (przez `ProductParts`) oraz `ProductionPlans` ↔ `OrderDetails` (przez `ProductionAllocations`)
-3. **Tabele słownikowe**: `Categories`, `PartTypes`, `Status`, `DaysOff`
-4. **Singleton konfiguracyjny**: `Parameters`
-5. **Soft Delete**: Pole `Discontinued` w tabeli `Products` zamiast fizycznego usuwania
-
-### Integralność referencyjna
-
-Wszystkie relacje są egzekwowane przez ograniczenia klucza obcego (`FOREIGN KEY`), co zapewnia:
-- Niemożność usunięcia rekordów, do których istnieją odniesienia
-- Automatyczną walidację poprawności identyfikatorów
-- Spójność danych na poziomie bazy
 
 ## Opis poszczególnych tabel
 
@@ -402,7 +362,6 @@ CREATE TABLE dbo.Categories (
 ```
 
 * **Opis tabeli:** Tabela słownikowa służąca do kategoryzacji asortymentu (np. meble, akcesoria). Umożliwia logiczne grupowanie produktów w raportach i analizach sprzedaży.
-* **Klucz główny:** `ID` (klucz sztuczny/surrogate key).
 
 ### Klienci
 
@@ -442,7 +401,7 @@ CREATE TABLE dbo.Clients (
     1. Brak spacji w adresie (`NOT LIKE '% %'`).
     2. Obecność dokładnie jednego znaku `@` (poprzez porównanie długości ciągu przed i po usunięciu znaku).
     3. Poprawną strukturę znaków (wymaga sekwencji: ciąg -> `@` -> ciąg -> `.` -> ciąg).
-    4. Długość domeny najwyższego poziomu (np. .pl, .com) wynoszącą minimum 2 znaki.
+    4. Długość domeny (np. .pl, .com) wynoszącą minimum 2 znaki.
 
 ### Dni bez pracy/produkcji
 
@@ -546,7 +505,7 @@ CREATE TABLE dbo.Parts (
 );
 ```
 
-* **Opis tabeli:** Magazyn surowców i półproduktów. Tabela przechowuje aktualny stan magazynowy, cenę zakupu części oraz informacje o mocach przerobowych (ile danych części można przetworzyć/przyjąć).
+* **Opis tabeli:** Magazyn surowców i półproduktów. Tabela przechowuje aktualny stan magazynowy, cenę zakupu części oraz informacje o mocach przerobowych.
 * **Więzy integralności (Constraints):**
   * `CK_Parts_QuantityNotNegative`: Stan magazynowy nie może być ujemny.
   * `CK_Parts_PriceOverZero`: Cena zakupu części musi być dodatnia.
@@ -611,7 +570,7 @@ CREATE TABLE ProductionAllocations (
 );
 ```
 
-* **Opis tabeli:** Tabela łącząca plany produkcyjne z konkretnymi pozycjami zamówień. Pozwala na "twardą rezerwację" towaru będącego jeszcze w procesie produkcji pod konkretne zamówienie klienta.
+* **Opis tabeli:** Tabela łącząca plany produkcyjne z konkretnymi pozycjami zamówień. Pozwala na rezerwację towaru będącego jeszcze w procesie produkcji pod konkretne zamówienie klienta.
 * **Więzy integralności (Constraints):**
   * `CK_ProductionAllocations_QuantityAllocatedNotNegative`: Ilość alokowanego towaru musi być nieujemna.
 
@@ -690,7 +649,7 @@ CREATE TABLE dbo.Products (
 );
 ```
 
-* **Opis tabeli:** Główna kartoteka wyrobów gotowych. Zawiera dane o cenach, kosztach produkcji (wyliczanych), stanach magazynowych oraz maksymalnych mocach przerobowych montażu.
+* **Opis tabeli:** Główna tabela gotowych produktów. Zawiera dane o cenach, kosztach produkcji (wyliczanych), stanach magazynowych oraz maksymalnych mocach przerobowych montażu.
 * **Więzy integralności (Constraints):**
   * `QuantityNotNegative`: Stan magazynowy produktu nie może spaść poniżej zera.
   * `AssemblyCapacityNotNegative`: Moc przerobowa (limit produkcyjny) musi być wartością nieujemną.
@@ -705,7 +664,7 @@ CREATE TABLE dbo.Status (
 );
 ```
 
-* **Opis tabeli:** Słownik definiujący możliwe etapy cyklu życia zamówienia lub planu produkcyjnego (np. "w trakcie", "zakończone").
+* **Opis tabeli:** Słownik definiujący możliwe statusy zamówienia lub planu produkcyjnego (np. "w trakcie", "zakończone").
 <!-- - Opis:
 
 | Nazwa atrybutu | Typ | Opis/Uwagi |
@@ -1022,7 +981,7 @@ CREATE TYPE dbo.OrderProductType AS TABLE
 );
 ```
 
-* **Opis:** User-defined table type umożliwiający przekazanie listy produktów jako parametr do procedury składowanej.
+* **Opis:** User-defined table type umożliwiający przekazanie listy produktów jako parametr do procedury.
 * **Zastosowanie:** Używany w procedurze `AddOrder` do obsługi całego koszyka zakupowego w jednym wywołaniu. Pozwala na przekazanie wielu produktów jednocześnie zamiast wywoływania procedury osobno dla każdego produktu.
 * **Korzyści:**
   * **Atomowość transakcji:** Całe zamówienie (wszystkie produkty) jest przetwarzane w jednej transakcji.
@@ -1076,7 +1035,7 @@ END
 
 
 * **Opis:** Oblicza całkowity koszt materiałowy potrzebny do wytworzenia jednej sztuki produktu.
-* **Logika biznesowa:** Funkcja iteruje po strukturze produktu (BOM - Bill of Materials), sumując iloczyny cen zakupu części i ich wymaganej ilości. Wynik stanowi bazę do ustalania ceny sprzedaży. Zabezpieczona przed wartościami `NULL` (zwraca 0 w przypadku braku zdefiniowanych części).
+* **Logika biznesowa:** Funkcja iteruje po strukturze produktu, sumując iloczyny cen zakupu części i ich wymaganej ilości. Wynik stanowi bazę do ustalania ceny sprzedaży. Zabezpieczona przed wartościami `NULL` (zwraca 0 w przypadku braku zdefiniowanych części).
 
 ### Funkcja: Cena sprzedaży
 
@@ -1163,10 +1122,10 @@ BEGIN
 END;
 ```
 
-* **Opis:** Zaawansowany mechanizm wyliczania dynamicznego rabatu w zależności od wartości zamówienia.
+* **Opis:** Mechanizm wyliczania dynamicznego rabatu w zależności od wartości zamówienia.
 * **Logika biznesowa:** Implementuje progresywny system zniżek oparty na parametrach globalnych:
   * Sprawdza, czy wartość zamówienia przekracza próg minimalny (`DiscountThreshold`).
-  * Za każde pełne 100 jednostek walutowych powyżej progu dolicza określony procent rabatu (`DiscountStepValue`).
+  * Za każde pełne 100zł powyżej progu dolicza określony procent rabatu (`DiscountStepValue`).
   * Pilnuje, aby wyliczona zniżka nie przekroczyła ustalonego odgórnie limitu (`MaxDiscount`), chroniąc rentowność sprzedaży.
   
 ### Procedura: Dodaj kategorię
@@ -1472,7 +1431,7 @@ END
 * **Opis:** Kluczowa procedura transakcyjna realizująca proces sprzedaży. Jest to najbardziej złożony algorytm w systemie, integrujący sprzedaż z magazynem i produkcją.
 * **Parametry:** Przyjmuje dane klienta oraz listę produktów (jako typ tabelaryczny `OrderProductType`), co pozwala na obsłużenie całego koszyka w jednym wywołaniu.
 * **Logika biznesowa:**
-  1. **Identyfikacja klienta:** Sprawdza, czy klient istnieje w bazie. Jeśli nie – automatycznie tworzy kartotekę nowego klienta.
+  1. **Identyfikacja klienta:** Sprawdza, czy klient istnieje w bazie. Jeśli nie – automatycznie tworzy rekord z danymi nowego klienta.
   2. **Rejestracja zamówienia:** Tworzy nagłówek zamówienia i wpisuje pozycje do `OrderDetails`, pobierając aktualne ceny z tabeli `Products`.
   3. **Weryfikacja magazynu (Pętla):** Dla każdego produktu sprawdza dostępność (`Quantity`):
      * **Towar dostępny:** Rezerwuje towar (zmniejsza stan magazynowy) i ustawia szybką datę realizacji.
@@ -1519,7 +1478,6 @@ BEGIN
 END
 ```
 
-* **Typ:** Funkcja skalarna.
 * **Opis:** Funkcja pomocnicza służąca do precyzyjnego planowania terminów.
 * **Logika:** Oblicza datę zakończenia prac, dodając do daty startowej określoną liczbę dni roboczych. Algorytm w pętli sprawdza każdy kolejny dzień w tabeli `DaysOff` – jeśli dzień jest wolny, nie jest wliczany do czasu realizacji. Zapewnia to realne terminy wykonania zleceń.
 
@@ -1591,11 +1549,6 @@ Zestaw procedur administracyjnych służących do zarządzania tabelą `Paramete
 * **`dbo.UpdateMaxDiscount`:** Definiuje górny limit możliwego do uzyskania rabatu (bezpiecznik finansowy).
 
 ## Triggery
-
-Triggery uzupełniają procedury, działając automatycznie przy każdej operacji DML (INSERT/UPDATE/DELETE). Są potrzebne do:
-- **Walidacji złożonej logiki biznesowej** (trudnej do wyrażenia w constraint)
-- **Automatycznych aktualizacji** (bez potrzeby pamiętania o wywołaniu procedury)
-- **Zachowania spójności danych** (nawet przy bezpośrednich operacjach SQL)
 
 ### Walidacja przejść statusów planu produkcyjnego
 
@@ -1693,7 +1646,7 @@ END;
 
 ### Model uprawnień
 
-W systemie wdrożono model bezpieczeństwa oparty na rolach (RBAC), co zapewnia separację obowiązków i minimalizację ryzyka nieuprawnionego dostępu do danych wrażliwych.
+W systemie wdrożono model bezpieczeństwa oparty na rolach, co zapewnia separację obowiązków i minimalizację ryzyka nieuprawnionego dostępu do danych wrażliwych.
 
 1. **Rola Zarządcza (`Rola_Zarzad`)**
    * **Przeznaczenie:** Dla kadry kierowniczej i analityków biznesowych.
@@ -1769,11 +1722,7 @@ ALTER ROLE [Rola_Magazyn] ADD MEMBER [User_Magazynier];
 
 # 5. Indeksy
 
-Indeksy są kluczowym elementem optymalizacji wydajności bazy danych. Poprawnie zdefiniowane indeksy znacząco przyspieszają operacje odczytu, szczególnie w zapytaniach zawierających złączenia (JOIN), warunki filtrowania (WHERE) oraz sortowanie. W systemie zaimplementowano strategię indeksowania obejmującą klucze obce, kolumny często używane w wyszukiwaniach oraz pola dat wykorzystywane w raportach.
-
 ## Indeksy na klucze obce
-
-Klucze obce są najczęściej używanymi kolumnami w operacjach JOIN. SQL Server automatycznie tworzy indeksy na kluczach głównych, ale **nie** tworzy ich na kluczach obcych, co może prowadzić do poważnych problemów wydajnościowych.
 
 ```SQL
 -- Tabela: OrderDetails
@@ -1822,7 +1771,7 @@ CREATE INDEX IX_ProductionDailyLog_ProductionPlanID
     ON dbo.ProductionDailyLog(ProductionPlan_ID);
 ```
 
-**Uzasadnienie:** Indeksy na kluczach obcych drastycznie przyspieszają operacje JOIN, które stanowią podstawę większości zapytań analitycznych i raportowych w systemie. Bez tych indeksów SQL Server musiałby wykonywać pełne skanowanie tabel przy każdym złączeniu.
+**Uzasadnienie:** Indeksy na kluczach obcych przyspieszają operacje JOIN, które stanowią podstawę większości zapytań analitycznych i raportowych w systemie.
 
 ## Indeksy na kolumny w klauzulach WHERE i JOIN
 
@@ -1887,352 +1836,8 @@ CREATE INDEX IX_DaysOff_DateRange
     ON dbo.DaysOff(StartDate, EndDate);
 ```
 
-**Uzasadnienie:** Widoki raportowe (`vw_Sales_Report`, `vw_ProductionCost_Monthly`, itp.) zawierają funkcje `YEAR()`, `MONTH()`, `DATEPART(QUARTER, ...)` oraz warunki filtrujące po zakresach dat. Indeksy na kolumnach dat umożliwiają szybkie wyszukiwanie przedziałów czasowych.
-
-## Indeksy kompozytowe
-
-Indeksy wielokolumnowe są kluczowe dla zapytań zawierających wiele warunków filtrowania lub sortowania.
-
-```SQL
--- Orders: kombinacja klienta i daty (historia zamówień klienta)
-CREATE INDEX IX_Orders_ClientID_OrderDate 
-    ON dbo.Orders(Client_ID, OrderDate);
-
--- Orders: status i data (monitorowanie zamówień według statusu w czasie)
-CREATE INDEX IX_Orders_StatusID_OrderDate 
-    ON dbo.Orders(Status_ID, OrderDate);
-
--- OrderDetails: zamówienie i produkt (szybkie pobieranie pozycji)
-CREATE INDEX IX_OrderDetails_OrderID_ProductID 
-    ON dbo.OrderDetails(Order_ID, Product_ID);
-
--- ProductionPlans: produkt i data (analiza historii produkcji produktu)
-CREATE INDEX IX_ProductionPlans_ProductID_EndDate 
-    ON dbo.ProductionPlans(Product_ID, EndDate);
-
--- ProductionPlans: typ produkcji i data (raporty produkcji cyklicznej vs. na zamówienie)
-CREATE INDEX IX_ProductionPlans_ProductionType_EndDate 
-    ON dbo.ProductionPlans(ProductionType, EndDate);
-
--- ProductionDailyLog: plan i data (chronologia postępów)
-CREATE INDEX IX_ProductionDailyLog_PlanID_Date 
-    ON dbo.ProductionDailyLog(ProductionPlan_ID, Date);
-
--- Products: kategoria i stan magazynowy (raporty dostępności według kategorii)
-CREATE INDEX IX_Products_CategoryID_Quantity 
-    ON dbo.Products(Category_ID, Quantity);
-
--- Products: kategoria i status wycofania (aktywny asortyment według kategorii)
-CREATE INDEX IX_Products_CategoryID_Discontinued 
-    ON dbo.Products(Category_ID, Discontinued) 
-    WHERE Discontinued = 0;  -- indeks filtrowany dla aktywnych produktów
-```
-
-**Uzasadnienie:** 
-- **Kolejność kolumn w indeksie jest krytyczna**: Pierwsza kolumna powinna być najbardziej selektywna lub najczęściej używana w `WHERE`.
-- Indeks `IX_Orders_ClientID_OrderDate` umożliwia szybkie pobieranie historii zamówień konkretnego klienta posortowanej chronologicznie.
-- Indeks `IX_ProductionPlans_ProductID_EndDate` wspiera widoki kosztowe, które agregują dane według produktu i czasu.
-- Indeks filtrowany `IX_Products_CategoryID_Discontinued` jest optymalizacją dla zapytań zwracających tylko produkty aktywne (90%+ wszystkich zapytań o produkty).
-
-### Zalecenia dotyczące zarządzania indeksami
-
-1. **Monitoring fragmentacji**: Indeksy powinny być regularnie przebudowywane lub reorganizowane gdy fragmentacja przekroczy 30%.
-   ```SQL
-   -- Sprawdzenie fragmentacji
-   SELECT 
-       OBJECT_NAME(ips.object_id) AS TableName,
-       i.name AS IndexName,
-       ips.avg_fragmentation_in_percent
-   FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') ips
-   JOIN sys.indexes i ON ips.object_id = i.object_id AND ips.index_id = i.index_id
-   WHERE ips.avg_fragmentation_in_percent > 30
-   ORDER BY ips.avg_fragmentation_in_percent DESC;
-   ```
-
-2. **Analiza wykorzystania indeksów**: Okresowo należy sprawdzać, które indeksy są rzeczywiście używane.
-   ```SQL
-   -- Indeksy niewykorzystywane (kandydaci do usunięcia)
-   SELECT 
-       OBJECT_NAME(i.object_id) AS TableName,
-       i.name AS IndexName,
-       ius.user_seeks,
-       ius.user_scans,
-       ius.user_updates
-   FROM sys.indexes i
-   LEFT JOIN sys.dm_db_index_usage_stats ius 
-       ON i.object_id = ius.object_id AND i.index_id = ius.index_id
-   WHERE i.type_desc = 'NONCLUSTERED'
-       AND OBJECTPROPERTY(i.object_id, 'IsUserTable') = 1
-       AND (ius.user_seeks + ius.user_scans) < ius.user_updates  -- więcej zapisów niż odczytów
-   ORDER BY (ius.user_seeks + ius.user_scans) ASC;
-   ```
+**Uzasadnienie:** Widoki raportowe (`vw_Sales_Report`, `vw_ProductionCost_Monthly`, itp.) zawierają funkcje `YEAR()`, `MONTH()`, `DATEPART(QUARTER, ...)` oraz warunki filtrujące po zakresach dat.
 
 3. **Koszt indeksów**: Każdy indeks przyspiesza odczyt, ale spowalnia operacje `INSERT`, `UPDATE` i `DELETE`. Należy znaleźć równowagę między wydajnością odczytu a zapisem.
 
-4. **Statystyki**: SQL Server automatycznie aktualizuje statystyki, ale w systemach z intensywnym zapisem warto rozważyć ręczną aktualizację po dużych operacjach batch.
-   ```SQL
-   UPDATE STATISTICS dbo.Orders WITH FULLSCAN;
-   ```
-
----
-
-# 6. Przykładowe dane testowe
-
-## Sposób generacji danych
-
-Dane testowe zostały wygenerowane w celu:
-1. **Demonstracji funkcjonalności systemu** - umożliwienie testowania wszystkich procedur, funkcji, widoków i triggerów
-2. **Symulacji rzeczywistego środowiska produkcyjnego** - odzwierciedlenie typowych scenariuszy biznesowych (zamówienia, produkcja, magazyn)
-3. **Weryfikacji wydajności** - wystarczająca ilość danych do testowania indeksów i zapytań analitycznych
-
-### Metodyka generacji:
-
-- **Kategorie i parametry globalne** - ręcznie zdefiniowane wartości biznesowe (ceny robocizny, progi rabatowe)
-- **Części (Parts)** - podstawowe komponenty (śruby, deski, tkaniny) z różnymi cenami i stanami magazynowymi
-- **Produkty (Products)** - wyroby gotowe (meble, narzędzia) z zdefiniowaną strukturą BOM
-- **Klienci (Clients)** - mix firm i osób prywatnych z różnymi danymi kontaktowymi
-- **Zamówienia (Orders)** - zamówienia z różnymi statusami (realizowane, zakończone, anulowane) i datami z ostatnich 12 miesięcy
-- **Plany produkcyjne** - zarówno cykliczne (type='P') jak i wymuszone zamówieniami (type='O'), z różnymi statusami realizacji
-- **Dzienniki produkcji** - codzienne raporty z realizacji planów, zawierające ilości wyprodukowane i kontrolę jakości
-
-### Zasady spójności:
-
-- Każde zamówienie odnosi się do istniejącego klienta
-- OrderDetails zawiera tylko produkty dostępne w bazie
-- ProductParts definiuje pełny skład każdego produktu
-- Plany produkcyjne mają realistyczne daty rozpoczęcia i zakończenia
-- Stany magazynowe są dodatnie lub zerowe
-- Daty są chronologiczne (OrderDate < CompletionDate)
-
-## Skrypty INSERT
-
-### Kategorie produktów i części
-
-```SQL
--- Kategorie produktów
-INSERT INTO dbo.ProductCategories (Name) VALUES
-('Biurka'),
-('Fotele biurowe'),
-('Krzesła'),
-('Fotele gamingowe');
-
--- Kategorie części
-INSERT INTO dbo.PartCategories (Name) VALUES
-('Drewno'),
-('Łączniki metalowe'),
-('Tkaniny tapicerskie'),
-('Mechanizmy'),
-('Elementy regulacyjne');
-```
-
-### Klienci
-
-```SQL
-INSERT INTO dbo.Clients (Name, Email, PhoneNumber, NIP, Address, PostalCode, City, Country) VALUES
-('Firma Meblowa ABC Sp. z o.o.', 'kontakt@abcmeble.pl', '+48123456789', '1234567890', 'ul. Przemysłowa 15', '00-001', 'Warszawa', 'Polska'),
-('Biuro Projektowe XYZ', 'biuro@xyz.com', '+48987654321', '0987654321', 'al. Projektowa 8', '30-002', 'Kraków', 'Polska'),
-('Jan Kowalski', 'jan.kowalski@gmail.com', '+48111222333', NULL, 'ul. Kwiatowa 3', '50-003', 'Wrocław', 'Polska'),
-('Anna Nowak', 'a.nowak@wp.pl', '+48444555666', NULL, 'os. Słoneczne 12/5', '80-004', 'Gdańsk', 'Polska'),
-('Sklep Meblowy Delta', 'sprzedaz@delta.pl', '+48777888999', '1122334455', 'ul. Handlowa 45', '90-005', 'Łódź', 'Polska'),
-('Piotr Wiśniewski', 'piotr.w@onet.pl', '+48222333444', NULL, 'ul. Leśna 7', '60-006', 'Poznań', 'Polska');
-```
-
-### Części
-
-```SQL
-INSERT INTO dbo.Parts (Name, PartCategory_ID, Quantity, Price) VALUES
--- Drewno (PartCategory_ID = 1)
-('Blat dębowy 140x80x3cm', 1, 80, 180.00),
-('Blat bukowy 120x60x2.5cm', 1, 100, 120.00),
-('Płyta laminowana 160x80x2cm', 1, 120, 95.00),
-('Noga drewniana stożkowa 72cm', 1, 200, 25.00),
-('Rama drewniana krzesła', 1, 150, 35.00),
-
--- Łączniki metalowe (PartCategory_ID = 2)
-('Śruba M8x50mm', 2, 5000, 0.20),
-('Wkręt meblowy 5x60mm', 2, 8000, 0.12),
-('Kątownik wzmacniający stalowy', 2, 400, 3.50),
-('Płoza metalowa krzesła', 2, 300, 18.00),
-('Podstawa krzyżakowa stalowa', 2, 200, 45.00),
-
--- Tkaniny tapicerskie (PartCategory_ID = 3)
-('Tkanina obiciowa mesh szara', 3, 150, 38.00),
-('Skóra ekologiczna czarna', 3, 100, 75.00),
-('Tkanina gamingowa czerwono-czarna', 3, 80, 65.00),
-('Pianka wysokoelastyczna 8cm', 3, 200, 18.00),
-('Wypełnienie siedziska', 3, 180, 12.00),
-
--- Mechanizmy (PartCategory_ID = 4)
-('Mechanizm synchroniczny fotela', 4, 120, 85.00),
-('Mechanizm podnoszenia gazowy', 4, 200, 42.00),
-('Kółka obrotowe (zestaw 5szt)', 4, 250, 28.00),
-('Podłokietniki regulowane 3D', 4, 180, 55.00),
-
--- Elementy regulacyjne (PartCategory_ID = 5)
-('Dźwignia regulacji wysokości', 5, 300, 8.50),
-('Pokrętło regulacji pochylenia', 5, 250, 6.00),
-('Wspornik regulacji podparcia lędźwi', 5, 200, 15.00);
-```
-
-### Produkty
-
-```SQL
-INSERT INTO dbo.Products (Name, ProductCategory_ID, Price, Quantity, WorkHours) VALUES
--- Biurka (ProductCategory_ID = 1)
-('Biurko Executive 140x80', 1, 1250.00, 12, 5.5),
-('Biurko Standard 120x60', 1, 850.00, 20, 4.0),
-('Biurko narożne Premium 160x120', 1, 1650.00, 8, 7.0),
-
--- Fotele biurowe (ProductCategory_ID = 2)
-('Fotel biurowy Ergonomic Pro', 2, 980.00, 15, 3.5),
-('Fotel biurowy Manager', 2, 750.00, 25, 2.8),
-('Fotel biurowy Comfort Plus', 2, 620.00, 30, 2.5),
-
--- Krzesła (ProductCategory_ID = 3)
-('Krzesło konferencyjne Standard', 3, 380.00, 40, 1.8),
-('Krzesło biurowe Basic', 3, 420.00, 35, 2.0),
-
--- Fotele gamingowe (ProductCategory_ID = 4)
-('Fotel gamingowy Dragon X', 4, 1150.00, 10, 4.0),
-('Fotel gamingowy Storm Pro', 4, 1380.00, 8, 4.5),
-('Fotel gamingowy Racer Elite', 4, 1580.00, 6, 5.0);
-```
-
-### Skład produktów
-
-```SQL
--- Biurko Executive 140x80 (Product_ID = 1)
-EXEC dbo.AddProductPart @ProductID=1, @PartID=1, @Quantity=1;  -- Blat dębowy 140x80
-EXEC dbo.AddProductPart @ProductID=1, @PartID=4, @Quantity=4;  -- Nogi drewniane stożkowe
-EXEC dbo.AddProductPart @ProductID=1, @PartID=6, @Quantity=16; -- Śruby M8
-EXEC dbo.AddProductPart @ProductID=1, @PartID=8, @Quantity=4;  -- Kątowniki wzmacniające
-
--- Biurko Standard 120x60 (Product_ID = 2)
-EXEC dbo.AddProductPart @ProductID=2, @PartID=2, @Quantity=1;  -- Blat bukowy 120x60
-EXEC dbo.AddProductPart @ProductID=2, @PartID=4, @Quantity=4;  -- Nogi drewniane
-EXEC dbo.AddProductPart @ProductID=2, @PartID=6, @Quantity=12; -- Śruby
-EXEC dbo.AddProductPart @ProductID=2, @PartID=8, @Quantity=2;  -- Kątowniki
-
--- Fotel biurowy Ergonomic Pro (Product_ID = 4)
-EXEC dbo.AddProductPart @ProductID=4, @PartID=11, @Quantity=2; -- Tkanina mesh
-EXEC dbo.AddProductPart @ProductID=4, @PartID=14, @Quantity=2; -- Pianka wysokoelastyczna
-EXEC dbo.AddProductPart @ProductID=4, @PartID=16, @Quantity=1; -- Mechanizm synchroniczny
-EXEC dbo.AddProductPart @ProductID=4, @PartID=17, @Quantity=1; -- Mechanizm gazowy
-EXEC dbo.AddProductPart @ProductID=4, @PartID=10, @Quantity=1; -- Podstawa krzyżakowa
-EXEC dbo.AddProductPart @ProductID=4, @PartID=18, @Quantity=1; -- Kółka obrotowe
-EXEC dbo.AddProductPart @ProductID=4, @PartID=19, @Quantity=1; -- Podłokietniki 3D
-
--- Krzesło konferencyjne Standard (Product_ID = 7)
-EXEC dbo.AddProductPart @ProductID=7, @PartID=5, @Quantity=1;  -- Rama drewniana
-EXEC dbo.AddProductPart @ProductID=7, @PartID=15, @Quantity=1; -- Wypełnienie siedziska
-EXEC dbo.AddProductPart @ProductID=7, @PartID=12, @Quantity=1; -- Skóra ekologiczna
-EXEC dbo.AddProductPart @ProductID=7, @PartID=9, @Quantity=4;  -- Płozy metalowe
-EXEC dbo.AddProductPart @ProductID=7, @PartID=6, @Quantity=8;  -- Śruby
-
--- Fotel gamingowy Dragon X (Product_ID = 9)
-EXEC dbo.AddProductPart @ProductID=9, @PartID=13, @Quantity=2; -- Tkanina gamingowa
-EXEC dbo.AddProductPart @ProductID=9, @PartID=14, @Quantity=2; -- Pianka wysokoelastyczna
-EXEC dbo.AddProductPart @ProductID=9, @PartID=16, @Quantity=1; -- Mechanizm synchroniczny
-EXEC dbo.AddProductPart @ProductID=9, @PartID=17, @Quantity=1; -- Mechanizm gazowy
-EXEC dbo.AddProductPart @ProductID=9, @PartID=10, @Quantity=1; -- Podstawa krzyżakowa
-EXEC dbo.AddProductPart @ProductID=9, @PartID=18, @Quantity=1; -- Kółka obrotowe
-EXEC dbo.AddProductPart @ProductID=9, @PartID=19, @Quantity=1; -- Podłokietniki 3D
-EXEC dbo.AddProductPart @ProductID=9, @PartID=21, @Quantity=1; -- Wspornik lędźwi
-```
-
-### Parametry globalne
-
-```SQL
-EXEC dbo.UpdateHourlyRate @NewRate = 45.00;
-EXEC dbo.UpdateDiscountThreshold @NewThreshold = 5000.00;
-EXEC dbo.UpdateDiscountStepValue @NewStep = 2.5;
-EXEC dbo.UpdateMaxDiscount @NewMax = 15.0;
-```
-
-### Zamówienia
-
-```SQL
--- Zamówienie 1: Firma Meblowa ABC (zakończone)
-DECLARE @Order1 dbo.OrderProductType;
-INSERT INTO @Order1 VALUES (1, 5), (4, 8), (7, 12);
-EXEC dbo.AddOrder 
-    @ClientName='Firma Meblowa ABC Sp. z o.o.',
-    @OrderDate='2025-11-15',
-    @Products=@Order1;
-UPDATE dbo.Orders SET Status='Zakończone', CompletionDate='2025-12-10' WHERE ID=1;
-
--- Zamówienie 2: Jan Kowalski (w realizacji)
-DECLARE @Order2 dbo.OrderProductType;
-INSERT INTO @Order2 VALUES (2, 1), (5, 1);
-EXEC dbo.AddOrder 
-    @ClientName='Jan Kowalski',
-    @OrderDate='2025-12-20',
-    @Products=@Order2;
-UPDATE dbo.Orders SET Status='W realizacji' WHERE ID=2;
-
--- Zamówienie 3: Sklep Meblowy Delta (duże zamówienie z rabatem)
-DECLARE @Order3 dbo.OrderProductType;
-INSERT INTO @Order3 VALUES (1, 8), (2, 10), (9, 6), (10, 4);
-EXEC dbo.AddOrder 
-    @ClientName='Sklep Meblowy Delta',
-    @OrderDate='2026-01-05',
-    @Products=@Order3;
-
--- Zamówienie 4: Anna Nowak (nowe)
-DECLARE @Order4 dbo.OrderProductType;
-INSERT INTO @Order4 VALUES (8, 4), (11, 2);
-EXEC dbo.AddOrder 
-    @ClientName='Anna Nowak',
-    @OrderDate='2026-01-15',
-    @Products=@Order4;
-```
-
-### Plany produkcyjne
-
-```SQL
--- Plan cykliczny: Krzesła biurowe (co tydzień)
-INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
-VALUES (7, 20, '2026-01-06', '2026-01-10', 'P');
-
--- Plan wymuszony zamówieniem 2 (biurko Standard)
-INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType, Order_ID)
-VALUES (2, 1, '2025-12-22', '2025-12-26', 'O', 2);
-
--- Plan cykliczny: Fotele biurowe Manager (co 2 tygodnie)
-INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
-VALUES (5, 10, '2026-01-13', '2026-01-20', 'P');
-
--- Plan zakończony: Fotele gamingowe Dragon X
-INSERT INTO dbo.ProductionPlans (Product_ID, Quantity, StartDate, EndDate, ProductionType)
-VALUES (9, 6, '2025-12-01', '2025-12-09', 'P');
-UPDATE dbo.ProductionPlans SET ProductionType='Z' WHERE ID=4;
-
--- Dzienniki produkcji dla planu 4 (zakończonego)
-EXEC dbo.CreateDailyLog @ProductionPlanID=4, @Quantity=3, @QualityStatus='K';
-EXEC dbo.CreateDailyLog @ProductionPlanID=4, @Quantity=3, @QualityStatus='K';
-```
-
-### Weryfikacja danych
-
-```SQL
--- Sprawdzenie ilości rekordów
-SELECT 'Products' AS Tabela, COUNT(*) AS Rekordy FROM dbo.Products
-UNION ALL
-SELECT 'Parts', COUNT(*) FROM dbo.Parts
-UNION ALL
-SELECT 'Clients', COUNT(*) FROM dbo.Clients
-UNION ALL
-SELECT 'Orders', COUNT(*) FROM dbo.Orders
-UNION ALL
-SELECT 'OrderDetails', COUNT(*) FROM dbo.OrderDetails
-UNION ALL
-SELECT 'ProductionPlans', COUNT(*) FROM dbo.ProductionPlans
-UNION ALL
-SELECT 'ProductParts', COUNT(*) FROM dbo.ProductParts;
-
--- Test podstawowych widoków
-SELECT TOP 3 * FROM vw_Orders_Summary;
-SELECT TOP 3 * FROM vw_BestSellingProducts;
-SELECT * FROM vw_Stock_Products;
-```
 ---
