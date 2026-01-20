@@ -77,7 +77,6 @@ Autorzy:
     - [Procedury: Konfiguracja parametrów globalnych](#procedury-konfiguracja-parametrów-globalnych)
   - [Triggery](#triggery)
     - [Walidacja przejść statusów planu produkcyjnego](#walidacja-przejść-statusów-planu-produkcyjnego)
-    - [Walidacja dostępności części przy tworzeniu planu produkcyjnego](#walidacja-dostępności-części-przy-tworzeniu-planu-produkcyjnego)
 - [4. Role i Uprawnienia](#4-role-i-uprawnienia)
   - [Model uprawnień](#model-uprawnień)
   - [Utworzenie ról i przypisanie uprawnień](#utworzenie-ról-i-przypisanie-uprawnień)
@@ -1588,58 +1587,6 @@ BEGIN
     BEGIN
         RAISERROR('Niedozwolone przejście statusu planu produkcyjnego!', 16, 1);
         ROLLBACK TRANSACTION;
-    END
-END;
-```
-
-### Walidacja dostępności części przy tworzeniu planu produkcyjnego
-
-**Cel:** Ostrzeżenie, jeśli plan produkcyjny wymaga więcej części niż jest na magazynie.
-
-**Dlaczego trigger?** Procedura `CreateProductionPlan` może to sprawdzać, ale trigger zapewnia ochronę przy bezpośrednim INSERT.
-
-```sql
--- Trigger sprawdzający dostępność części przy nowym planie produkcyjnym
-CREATE TRIGGER trg_ProductionPlans_CheckPartsAvailability
-ON dbo.ProductionPlans
-AFTER INSERT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    -- Sprawdzenie czy są wymagane części dla produktu
-    DECLARE @MissingParts TABLE (
-        PlanID INT,
-        ProductName VARCHAR(255),
-        PartName VARCHAR(255),
-        Required INT,
-        Available INT
-    );
-    
-    INSERT INTO @MissingParts
-    SELECT 
-        i.ID AS PlanID,
-        p.Name AS ProductName,
-        pt.Name AS PartName,
-        pp.Quantity * i.Quantity AS Required,
-        pt.Quantity AS Available
-    FROM inserted i
-    JOIN dbo.Products p ON i.Product_ID = p.ID
-    JOIN dbo.ProductParts pp ON p.ID = pp.Product_ID
-    JOIN dbo.Parts pt ON pp.Part_ID = pt.ID
-    WHERE pt.Quantity < (pp.Quantity * i.Quantity);
-    
-    -- Jeśli są braki, wygeneruj ostrzeżenie
-    IF EXISTS (SELECT 1 FROM @MissingParts)
-    BEGIN
-        DECLARE @Message NVARCHAR(500);
-        SELECT TOP 1 @Message = 
-            N'OSTRZEŻENIE: Brak części "' + PartName + '" dla planu ID ' + 
-            CAST(PlanID AS VARCHAR) + '. Potrzeba: ' + CAST(Required AS VARCHAR) + 
-            N', dostępne: ' + CAST(Available AS VARCHAR)
-        FROM @MissingParts;
-        
-        PRINT @Message;
     END
 END;
 ```
