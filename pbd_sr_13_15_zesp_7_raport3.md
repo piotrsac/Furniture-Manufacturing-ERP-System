@@ -909,25 +909,6 @@ Zestaw widoków analitycznych opartych na `vw_ProductionCost_Base`, służących
 3.  **`dbo.vw_ProductionCost_Monthly` (Miesięczny):** Najbardziej szczegółowy widok kosztowy, sumujący wydatki produkcyjne dla każdego miesiąca.
 4.  **`dbo.vw_Management_ProductionCosts` (Zarządczy):** Widok dedykowany dla kadry zarządzającej (Dashboard). Prezentuje skonsolidowane dane kosztowe w podziale na kategorie i produkty w ujęciu miesięcznym.
 
-### Plan produkcji - operacyjny
-
-```SQL
-CREATE VIEW vw_PlannedProduction
-AS
-SELECT
-    pp.ID AS ProductionPlanID,
-    p.Name AS ProductName,
-    pp.Quantity,
-    pp.EndDate,
-    s.Name AS Status,
-    pp.ProductionType
-FROM ProductionPlans pp
-JOIN Products p ON p.ID = pp.Product_ID
-JOIN Status s ON s.ID = pp.Status_ID;
-```
-
-- **Opis:** Widok operacyjny dla kierowników zmiany. Prezentuje bieżącą kolejkę zadań produkcyjnych.
-- **Logika:** Zestawia plany produkcyjne z nazwami produktów i czytelnymi statusami (np. "W trakcie", "Oczekujące"), pomijając zbędne dane analityczne.
 
 ### Raport planów produkcyjnych
 
@@ -950,7 +931,7 @@ JOIN Categories c ON c.ID = p.Category_ID
 JOIN Status s ON s.ID = pp.Status_ID;
 ```
 
-- **Opis:** Rozbudowana wersja widoku operacyjnego, wzbogacona o wymiary czasowe (rok, miesiąc, kwartał). Służy do analizy wydajności i terminowości działu produkcji.
+- **Opis:** Pokazuje spis wszystkich zaplanowanych produkcji i informacji o nich wraz ze statusem wykonania.
 - **Logika:** Umożliwia filtrowanie historii produkcji po okresach oraz typie zlecenia (Cykliczne vs Na żądanie).
 
 ### Raport sprzedaży
