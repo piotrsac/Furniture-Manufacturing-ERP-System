@@ -1572,36 +1572,29 @@ Zestaw procedur administracyjnych służących do zarządzania tabelą `Paramete
 **Dlaczego trigger?** Constraint CHECK nie może sprawdzać poprzedniej wartości, a procedury nie zadziałają przy bezpośrednim UPDATE.
 
 ```sql
--- Trigger walidujący przejścia statusów w planach produkcyjnych
-CREATE TRIGGER trg_ProductionPlans_ValidateStatusTransition
-ON dbo.ProductionPlans
-AFTER UPDATE
-AS
+CREATE   TRIGGER trg_ProductionPlans_ValidateStatus
+    ON dbo.ProductionPlans
+    AFTER UPDATE
+    AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Sprawdzenie niedozwolonych przejść statusów
-    -- P = Planowany, O = W trakcie, Z = Zakończony, X = Anulowany
-    IF EXISTS (
-        SELECT 1
-        FROM inserted i
-        INNER JOIN deleted d ON i.ID = d.ID
-        WHERE i.ProductionType != d.ProductionType
-          AND (
-              -- Nie można wrócić z 'Zakończony' do 'W trakcie' lub 'Planowany'
-              (d.ProductionType = 'Z' AND i.ProductionType IN ('P', 'O'))
-              OR
-              -- Nie można zmienić 'Zakończony' na 'Anulowany'
-              (d.ProductionType = 'Z' AND i.ProductionType = 'X')
-              OR
-              -- Nie można zmienić 'Anulowany' na cokolwiek innego
-              (d.ProductionType = 'X' AND i.ProductionType != 'X')
-          )
-    )
-    BEGIN
-        RAISERROR('Niedozwolone przejście statusu planu produkcyjnego!', 16, 1);
-        ROLLBACK TRANSACTION;
-    END
+    IF UPDATE(Status_ID)
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM inserted i
+                         JOIN deleted d ON i.ID = d.ID
+                WHERE i.Status_ID != d.Status_ID
+                  AND (
+                    -- Stary status: 2 (Done) lub 3 (Cancelled)
+                    d.Status_ID IN (2, 3)
+                    )
+            )
+                BEGIN
+                    THROW 51000, N'BŁĄD: Statusy "Zakończony" (2) i "Anulowany" (3) są ostateczne!', 1;
+                END
+        END
 END;
 ```
 
