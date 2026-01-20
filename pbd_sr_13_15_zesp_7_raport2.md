@@ -514,13 +514,15 @@ CREATE TABLE dbo.Parts (
 
 ```SQL
 CREATE TABLE dbo.Parameters (
+    ID int DEFAULT 1 NOT NULL,
     Margin decimal(3,2)  NOT NULL,
     DiscountStepValue decimal(3,2)  NULL,
     DiscountThreshold decimal(10,2)  NULL,
     MaxDiscount decimal(3,2)  NULL
+    CONSTRAINT PK_Parameters PRIMARY KEY (ID),
+    CONSTRAINT CK_Parameters_Singleton CHECK (ID = 1),
     CONSTRAINT CK_Parameters_Values
         CHECK (Margin >= 0 AND DiscountStepValue >= 0);
-);
 ```
 
 * **Opis tabeli:** Tabela jedno-wierszowa (singleton) pełniąca rolę globalnej konfiguracji systemu. Przechowuje kluczowe zmienne sterujące logiką biznesową, wykorzystywane przez funkcje obliczające ceny i rabaty.
