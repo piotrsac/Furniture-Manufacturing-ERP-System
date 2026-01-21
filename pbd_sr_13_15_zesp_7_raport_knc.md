@@ -725,7 +725,7 @@ SELECT
 FROM DiscountPercent;
 ```
 
-- **Opis:** Kompleksowy widok analityczny agregujący pełne dane finansowe każdego zamówienia. Służy do raportowania sprzedaży i wystawiania dokumentów końcowych.
+- **Opis:** Widok agregujący pełne dane finansowe każdego zamówienia. Służy do raportowania sprzedaży i wystawiania dokumentów końcowych.
 - **Logika:** Widok realizuje przetwarzanie danych w trzech etapach (CTE):
   1. **Wycena koszyka:** Obliczenie surowej wartości zamówienia na podstawie cen jednostkowych i ilości (przed rabatami).
   2. **Naliczenie rabatu:** Wywołanie logiki biznesowej (funkcja `ObliczZnizke`) dla każdego koszyka w celu ustalenia należnego procentu zniżki.
@@ -763,6 +763,7 @@ SELECT
     o.EndDate,
     c.ID AS ClientID,
     c.Name AS ClientName,
+    p.ID AS ProductID,
     p.Name AS ProductName,
     od.Quantity,
     od.UnitPrice,
