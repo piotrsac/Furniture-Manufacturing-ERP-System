@@ -1513,28 +1513,36 @@ AS
 CREATE PROCEDURE dbo.UpdateDiscountStepValue
     @Value decimal(3, 2)
 AS
-    UPDATE dbo.Parameters SET DiscountStepValue = @Value;
+    UPDATE dbo.Parameters
+    SET DiscountStepValue = @Value
+    WHERE ID = 1;
 ```
 
 ```SQL
 CREATE PROCEDURE dbo.UpdateDiscountThreshold
     @Value decimal(10, 2)
 AS
-    UPDATE dbo.Parameters SET DiscountThreshold = @Value;
+    UPDATE dbo.Parameters
+    SET DiscountThreshold = @Value
+    WHERE ID = 1;
 ```
 
 ```SQL
 CREATE PROCEDURE dbo.UpdateMargin
     @Value decimal(3, 2)
 AS
-    UPDATE dbo.Parameters SET Margin = @Value;
+    UPDATE dbo.Parameters
+    SET Margin = @Value
+    WHERE ID = 1;
 ```
 
 ```SQL
 CREATE PROCEDURE dbo.UpdateMaxDiscount
     @Value decimal(3, 2)
 AS
-    UPDATE dbo.Parameters SET MaxDiscount = @Value;
+    UPDATE dbo.Parameters
+    SET MaxDiscount = @Value
+    WHERE ID = 1;
 ```
 
 Zestaw procedur administracyjnych służących do zarządzania tabelą `Parameters` (singletonem konfiguracyjnym). Umożliwiają zmianę polityki cenowej "na żywo", bez konieczności modyfikacji kodu systemu:
