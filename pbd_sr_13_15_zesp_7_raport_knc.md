@@ -57,7 +57,6 @@ Autorzy:
     - [Stan magazynowy części](#stan-magazynowy-części)
     - [Koszty produkcji - Widok Bazowy](#koszty-produkcji---widok-bazowy)
     - [Raporty kosztów produkcji (Agregacje czasowe)](#raporty-kosztów-produkcji-agregacje-czasowe)
-    - [Plan produkcji - operacyjny](#plan-produkcji---operacyjny)
     - [Raport planów produkcyjnych](#raport-planów-produkcyjnych)
     - [Raport sprzedaży](#raport-sprzedaży)
   - [Procedury/funkcje](#proceduryfunkcje)
@@ -75,8 +74,10 @@ Autorzy:
     - [Procedura: Dziennik produkcji](#procedura-dziennik-produkcji)
     - [Procedura: Wycofanie produktu](#procedura-wycofanie-produktu)
     - [Procedury: Konfiguracja parametrów globalnych](#procedury-konfiguracja-parametrów-globalnych)
+    - [Procedura: Obsługa awarii jakościowej](#procedura-obsługa-awarii-jakościowej)
   - [Triggery](#triggery)
     - [Walidacja przejść statusów planu produkcyjnego](#walidacja-przejść-statusów-planu-produkcyjnego)
+    - [Automatyczna reakcja na błędy jakościowe](#automatyczna-reakcja-na-błędy-jakościowe)
 - [4. Role i Uprawnienia](#4-role-i-uprawnienia)
   - [Model uprawnień](#model-uprawnień)
   - [Utworzenie ról i przypisanie uprawnień](#utworzenie-ról-i-przypisanie-uprawnień)
@@ -1212,7 +1213,7 @@ AS
 ### Procedura: Złóż zamówienie
 
 ```SQL
-CREATE  OR Alter PROCEDURE dbo.AddOrder
+CREATE OR ALTER   PROCEDURE dbo.AddOrder
 (
     @ClientName NVARCHAR(50),
     @Email VARCHAR(320) = NULL,
@@ -1223,13 +1224,57 @@ CREATE  OR Alter PROCEDURE dbo.AddOrder
     @City NVARCHAR(50) = NULL,
     @Country NVARCHAR(50) = NULL,
     @OrderDate DATE,
-    @Products dbo.OrderProductType READONLY-- koszyk zdefiniowany przez klienta
+    @Products dbo.OrderProductType READONLY -- koszyk zdefiniowany przez klienta
 )
 AS
 BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
+
+    --0. WALIDACJA (sprawdzenie ewentualnych pomyłek użytkownika)
+        IF NOT EXISTS (SELECT 1 FROM @Products)
+        BEGIN
+            THROW 50004, N'Koszyk jest pusty. Dodaj produkty przed złożeniem zamówienia.',
+            1;
+        END
+
+        --jesli bysmy chcieli zwracac id produktu ktorego nie mozna zamowic
+        DECLARE 
+            @BadProductID INT,
+            @BadReason NVARCHAR(50);
+
+        SELECT TOP 1
+            @BadProductID = op.Product_ID,
+            @BadReason =
+                CASE
+                    WHEN p.ID IS NULL THEN 'NOT_EXISTS'
+                    WHEN p.Discontinued = 1 THEN 'DISCONTINUED'
+                END
+        FROM @Products op
+        LEFT JOIN Products p ON p.ID = op.Product_ID
+        WHERE p.ID IS NULL
+        OR p.Discontinued = 1;
+        IF @BadProductID IS NOT NULL
+        BEGIN
+            IF @BadReason = 'NOT_EXISTS'
+                RAISERROR (
+                    'Produkt o ID = %d nie istnieje.',
+                    16,
+                    1,
+                    @BadProductID
+                );
+            ELSE
+                RAISERROR (
+                    'Produkt o ID = %d jest wycofany z oferty.',
+                    16,
+                    1,
+                    @BadProductID
+                );
+
+        END
+
+
         BEGIN TRAN;
 
         DECLARE @ClientID INT;
@@ -1237,7 +1282,7 @@ BEGIN
         DECLARE @TotalAmount DECIMAL(10,2);
 
 
-        -- 1. Sprawdzenie czy klient istnieje
+        -- 1. Sprawdzenie, czy klient istnieje
         -- klient identyfikowany po nazwie i emailu
         SELECT @ClientID = ID
         FROM Clients
@@ -1261,13 +1306,10 @@ BEGIN
                 @PostalCode,
                 @City,
                 @Country,
-                CASE
-                    WHEN @NIP IS NOT NULL AND LEN(@NIP) > 0 THEN 'F'-- jesli klient podal nip to to firma
-                    ELSE 'I'--w przeciwnym przypadku indywidualny
-                END
+                IIF(@Nip IS NOT NULL AND LEN(@Nip) > 0, 'F', 'I')
             );
 
-            SET @ClientID = SCOPE_IDENTITY();--zwraca ostatnią wartość kolumny IDENTITY wygenerowana wczesniej
+            SET @ClientID = SCOPE_IDENTITY(); --zwraca ostatnią wartość kolumny IDENTITY wygenerowana wczesniej
         END
 
         -- 2. Obliczenie wartości zamówienia (bez rabatu) na podstawie koszyka
@@ -1324,7 +1366,7 @@ BEGIN
                 WHERE ID = @ProductID;
 
                 UPDATE Orders
-                SET EndDate = dbo.CalculateEndDate(@OrderDate, 1)--zakladamy ze czas realizacji to min 1 dzien
+                SET EndDate = dbo.CalculateEndDate(@OrderDate, 1) --zakladamy ze czas realizacji to min 1 dzien
                 WHERE ID = @OrderID;
             END
             ELSE
@@ -1417,20 +1459,23 @@ BEGIN
 
     END TRY
     BEGIN CATCH
-        IF @@TRANCOUNT > 0--jesli transakcja dalej otwarta mimo ze powinna sie zakonczyc
+        IF @@TRANCOUNT > 0 --jesli transakcja dalej otwarta mimo ze powinna sie zakonczyc
             ROLLBACK TRAN;
 
         THROW;
     END CATCH
 END
+
+GO
 ```
 
-- **Opis:** Kluczowa procedura transakcyjna realizująca proces sprzedaży. Jest to najbardziej złożony algorytm w systemie, integrujący sprzedaż z magazynem i produkcją.
+- **Opis:** Procedura transakcyjna realizująca proces sprzedaży oraz integrująca sprzedaż z magazynem i produkcją.
 - **Parametry:** Przyjmuje dane klienta oraz listę produktów (jako typ tabelaryczny `OrderProductType`), co pozwala na obsłużenie całego koszyka w jednym wywołaniu.
 - **Logika biznesowa:**
-  1. **Identyfikacja klienta:** Sprawdza, czy klient istnieje w bazie. Jeśli nie – automatycznie tworzy rekord z danymi nowego klienta.
-  2. **Rejestracja zamówienia:** Tworzy nagłówek zamówienia i wpisuje pozycje do `OrderDetails`, pobierając aktualne ceny z tabeli `Products`.
-  3. **Weryfikacja magazynu (Pętla):** Dla każdego produktu sprawdza dostępność (`Quantity`):
+  1. **Walidacja wstępna:** Zanim rozpocznie się transakcja, system weryfikuje poprawność koszyka. Blokuje próbę złożenia pustego zamówienia, zamówienia produktu nieistniejącego lub produktu wycofanego.
+  2. **Identyfikacja klienta:** Sprawdza, czy klient istnieje w bazie. Jeśli nie – automatycznie tworzy rekord z danymi nowego klienta.
+  3. **Rejestracja zamówienia:** Tworzy nagłówek zamówienia i wpisuje pozycje do `OrderDetails`, pobierając aktualne ceny z tabeli `Products`.
+  4. **Weryfikacja magazynu (Pętla):** Dla każdego produktu sprawdza dostępność (`Quantity`):
      - **Towar dostępny:** Rezerwuje towar (zmniejsza stan magazynowy) i ustawia szybką datę realizacji.
      - **Brak towaru:**
        1. Konsumuje resztki z magazynu (jeśli są).
@@ -1438,8 +1483,8 @@ END
        3. Na podstawie mocy przerobowej (`AssemblyCapacity`) wylicza potrzebny czas produkcji.
        4. Tworzy dedykowany **Plan Produkcji** (typ `'O'` - On-demand).
        5. Tworzy **Alokację**, przypisując przyszłą produkcję do tego konkretnego zamówienia.
-  4. **Wyliczanie terminu:** Aktualizuje datę zakończenia zamówienia (`EndDate`), przyjmując najdalszy termin z wygenerowanych planów produkcyjnych.
-  5. **Finalizacja:** Zatwierdza transakcję i zwraca ID zamówienia oraz ostateczną kwotę do zapłaty (po uwzględnieniu automatycznych rabatów).
+  5. **Wyliczanie terminu:** Aktualizuje datę zakończenia zamówienia (`EndDate`), przyjmując najdalszy termin z wygenerowanych planów produkcyjnych.
+  6. **Finalizacja:** Zatwierdza transakcję i zwraca ID zamówienia oraz ostateczną kwotę do zapłaty (po uwzględnieniu automatycznych rabatów).
 
 ### Funkcja: Oblicz datę zakończenia
 
@@ -1553,6 +1598,176 @@ Zestaw procedur administracyjnych służących do zarządzania tabelą `Paramete
 - **`dbo.UpdateDiscountStepValue`:** Określa, o ile procent rośnie rabat za każde przekroczenie progu kwotowego.
 - **`dbo.UpdateMaxDiscount`:** Definiuje górny limit możliwego do uzyskania rabatu (bezpiecznik finansowy).
 
+### Procedura: Obsługa awarii jakościowej
+
+```SQL
+CREATE OR ALTER PROCEDURE dbo.sp_ProcessQualityFailure
+@DailyLogID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @Trancount INT = @@TRANCOUNT;
+
+    -- Zmienne operacyjne
+    DECLARE @OldPlanID INT, @FailedQty INT, @ProductID INT,
+        @OrderDetailID INT, @OrderID INT, @AssemblyCapacity INT,
+        @OldEndDate DATE, @RemainingQty INT;
+
+    DECLARE @StealPlan TABLE (PlanID INT, StealAmount INT);
+
+    -- Zmienne do powiadomienia
+    DECLARE @ClientName NVARCHAR(200), @ClientPhone NVARCHAR(50);
+    DECLARE @AlertMessage NVARCHAR(2048);
+
+    BEGIN TRY
+        IF @Trancount = 0 BEGIN TRAN;
+
+        -- 1. Pobranie kontekstu
+        SELECT
+            @OldPlanID = i.ProductionPlan_ID,
+            @FailedQty = i.Quantity,
+            @ProductID = pp.Product_ID,
+            @OldEndDate = pp.EndDate,
+            @AssemblyCapacity = ISNULL(p.AssemblyCapacity, 1),
+            @OrderDetailID = pa.OrderDetails_ID,
+            @OrderID = o.ID
+        FROM dbo.ProductionDailyLog i WITH (UPDLOCK)
+                 JOIN ProductionPlans pp ON i.ProductionPlan_ID = pp.ID
+                 JOIN Products p ON pp.Product_ID = p.ID
+                 LEFT JOIN ProductionAllocations pa ON pp.ID = pa.ProductionPlans_ID
+                 LEFT JOIN OrderDetails od ON pa.OrderDetails_ID = od.ID
+                 LEFT JOIN Orders o ON od.Order_ID = o.ID
+        WHERE i.ID = @DailyLogID;
+
+        -- Walidacja
+        IF @OrderDetailID IS NULL OR @FailedQty <= 0
+            BEGIN
+                IF @Trancount = 0 COMMIT TRAN;
+                RETURN;
+            END
+
+        SET @RemainingQty = @FailedQty;
+
+        -- KROK 1. Ewentualne podkradanie (Kanibalizacja planów cyklicznych)
+        ;WITH AvailablePlans AS (
+            SELECT
+                pp.ID,
+                pp.EndDate,
+                (pp.Quantity - ISNULL(Allocated.UsedQty, 0)) AS AvailableQty
+            FROM ProductionPlans pp WITH (UPDLOCK, ROWLOCK, READPAST)
+                     LEFT JOIN (
+                SELECT ProductionPlans_ID, SUM(QuantityAllocated) AS UsedQty
+                FROM ProductionAllocations
+                GROUP BY ProductionPlans_ID
+            ) Allocated ON pp.ID = Allocated.ProductionPlans_ID
+            WHERE pp.Product_ID = @ProductID
+              AND pp.ProductionType = 'C' -- Jest cykliczne to możemy ukraść
+              AND pp.Status_ID = 1 -- W toku
+              AND (pp.Quantity - ISNULL(Allocated.UsedQty, 0)) > 0
+        ),
+              RunningTotals AS (
+                  SELECT
+                      ID, AvailableQty,
+                      SUM(AvailableQty) OVER (ORDER BY EndDate, ID) AS RunningTotal
+                  FROM AvailablePlans
+              )
+         INSERT INTO @StealPlan (PlanID, StealAmount)
+         SELECT ID,
+                IIF(Runningtotal <= @Remainingqty, Availableqty, @Remainingqty - (Runningtotal - Availableqty))
+         FROM RunningTotals
+         WHERE (RunningTotal - AvailableQty) < @RemainingQty;
+
+        IF EXISTS (SELECT 1 FROM @StealPlan)
+            BEGIN
+                INSERT INTO ProductionAllocations (ProductionPlans_ID, QuantityAllocated, OrderDetails_ID)
+                SELECT PlanID, StealAmount, @OrderDetailID
+                FROM @StealPlan;
+
+                SELECT @RemainingQty = @RemainingQty - SUM(StealAmount) FROM @StealPlan;
+            END
+
+        -- KROK 2. Nowy plan jak ukradnięcie się nie powiodło/wystarczyło
+        IF @RemainingQty > 0
+            BEGIN
+                DECLARE @NewPlanEndDate DATE, @NewPlanID INT;
+                DECLARE @Today DATE = CAST(GETDATE() AS DATE);
+
+                DECLARE @StartBaseDate DATE = IIF(@Oldenddate >= @Today, @Oldenddate, @Today);
+                DECLARE @DurationDays INT = CEILING(CAST(@RemainingQty AS FLOAT) / NULLIF(@AssemblyCapacity, 0));
+
+                SET @NewPlanEndDate = dbo.CalculateEndDate(@Startbasedate, @Durationdays);
+
+                INSERT INTO ProductionPlans (Quantity, EndDate, Product_ID, ProductionType, Status_Id)
+                VALUES (@RemainingQty, @NewPlanEndDate, @ProductID, 'O', 1);
+
+                SET @NewPlanID = SCOPE_IDENTITY(); -- Pobranie ID
+
+                INSERT INTO ProductionAllocations (ProductionPlans_ID, QuantityAllocated, OrderDetails_ID)
+                VALUES (@NewPlanID, @RemainingQty, @OrderDetailID);
+            END
+
+
+        -- Aktualizacja zamówienia o nową datę końcową
+        DECLARE @CalculatedNewEndDate DATE;
+
+        ;WITH OrderMaxDate AS (
+            SELECT o.ID, MAX(pp.EndDate) as MaxProductionDate
+            FROM Orders o
+                     JOIN OrderDetails od ON o.ID = od.Order_ID
+                     JOIN ProductionAllocations pa ON od.ID = pa.OrderDetails_ID
+                     JOIN ProductionPlans pp ON pa.ProductionPlans_ID = pp.ID
+            WHERE o.ID = @OrderID
+            GROUP BY o.ID
+        )
+         SELECT @CalculatedNewEndDate = MaxProductionDate
+         FROM OrderMaxDate;
+
+        UPDATE o
+        SET EndDate = @CalculatedNewEndDate
+        FROM Orders o
+        WHERE o.ID = @OrderID
+          AND (@CalculatedNewEndDate > o.EndDate);
+
+
+        -- Alert
+        IF @CalculatedNewEndDate > @OldEndDate
+            BEGIN
+                SELECT
+                    @ClientName = c.Name,
+                    @ClientPhone = c.PhoneNumber
+                FROM Orders o
+                         JOIN Clients c ON o.Client_ID = c.ID
+                WHERE o.ID = @OrderID;
+
+                -- JSON dla systemu (to dla programisty)
+                SET @AlertMessage =
+                  N'{"Type": "QualityDelay", "OrderId": ' + CAST(@OrderID AS NVARCHAR(20)) +
+                  N', "Client": "' + ISNULL(@ClientName, 'N/A') +
+                  N'", "NewDate": "' + CAST(@CalculatedNewEndDate AS NVARCHAR(20)) + '"}';
+
+                -- Severity 10 = Info (Nie przerywa transakcji, widać w Output)
+                RAISERROR(@Alertmessage, 10, 1) WITH NOWAIT;
+            END
+
+        IF @Trancount = 0 COMMIT TRAN;
+    END TRY
+    BEGIN CATCH
+        IF @Trancount = 0 ROLLBACK TRAN;
+        DECLARE @ErrMsg NVARCHAR(4000) = ERROR_MESSAGE();
+        THROW 51000, @ErrMsg, 1;
+    END CATCH
+END;
+```
+
+- **Opis:** Zaawansowana procedura naprawcza uruchamiana w momencie zgłoszenia odrzutu produkcyjnego (QualityStatus = 'F'). Jej celem jest zminimalizowanie opóźnienia zamówienia klienta poprzez inteligentną realokację zasobów.
+- **Logika biznesowa:**
+    1. **"Podkradanie":** System sprawdza, czy istnieją inne plany produkcyjne dla tego samego produktu, które są typu cyklicznego ('C') (czyli robione na magazyn, a nie pod klienta). Jeśli tak, procedura "zabiera" z nich wyprodukowane sztuki i przesuwa je do zagrożonego zamówienia.
+    2. **Plan awaryjny:** Jeśli nie można pokryć braku z planów cyklicznych, procedura tworzy nowy plan produkcyjny typu On-demand ('O') na brakującą ilość.
+    3. **Rekalkulacja terminów:** Oblicza nowy termin zakończenia zamówienia i aktualizuje go w tabeli Orders.
+    4. **Powiadomienia:** Jeśli data realizacji uległa przesunięciu, generuje komunikat w formacie JSON (symulacja wysyłki maila/SMS do klienta).
+
 ## Triggery
 
 ### Walidacja przejść statusów planu produkcyjnego
@@ -1587,6 +1802,49 @@ BEGIN
         END
 END;
 ```
+
+### Automatyczna reakcja na błędy jakościowe
+
+```SQL
+CREATE OR ALTER TRIGGER trg_ProductionDailyLog_QualityCheck
+    ON dbo.ProductionDailyLog
+    AFTER INSERT
+    AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- 1. Sprawdzamy, czy w ogóle jest błąd w tym wpisie
+    -- Zakładamy, że w inserted jest tylko 1 wiersz naraz
+    DECLARE @DailyLogID INT;
+
+    SELECT @DailyLogID = ID
+    FROM inserted
+    WHERE QualityStatus = 'F' AND Quantity > 0;
+
+    -- Jeśli nie znaleziono błędu, kończymy działanie
+    IF @DailyLogID IS NULL
+        RETURN;
+
+    -- 2. Uruchamiamy procedurę naprawczą dla tego jednego ID
+    SAVE TRANSACTION TrgSavePoint;
+
+    BEGIN TRY
+        EXEC dbo.sp_ProcessQualityFailure @DailyLogID = @DailyLogID;
+    END TRY
+    BEGIN CATCH
+        -- Wycofujemy tylko logikę naprawczą w razie awarii procedury
+        -- Sam wpis pracownika (INSERT) zostaje w bazie
+        IF XACT_STATE() <> -1
+            BEGIN
+                ROLLBACK TRANSACTION TrgSavePoint;
+            END
+    END CATCH
+END;
+```
+
+- **Opis:** Trigger łączący wprowadzanie danych przez pracowników z logiką naprawczą systemu.
+- **Działanie:** Monitoruje tabelę `ProductionDailyLog`. W momencie pojawienia się wpisu o statusie 'F' (Fail) automatycznie wywołuje procedurę `sp_ProcessQualityFailure`.
+- **Bezpieczeństwo danych:** Wykorzystuje mechanizm SAVE TRANSACTION. Jeśli procedura naprawcza zawiedzie z powodu błędu, trigger wycofuje tylko tę procedurę, ale pozwala na zapisanie raportu pracownika. Dzięki temu informacja o błędzie nie ginie, nawet jeśli system nie potrafi automatycznie naprawić harmonogramu.
 
 # 4. Role i Uprawnienia
 
