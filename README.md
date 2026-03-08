@@ -1,51 +1,71 @@
-# Supply Chain Database (SQL Server)
+# Furniture Manufacturing ERP System
+### Integrated Supply Chain, Production Planning & Sales Management
 
-Projekt relacyjnej bazy danych obsługującej procesy produkcyjne, magazynowe oraz sprzedażowe. System symuluje działanie małego systemu ERP/MRP z naciskiem na automatyzację logiki biznesowej po stronie serwera SQL.
-
-## Autorzy
-- **Patrycja Zborowska**
-- **Alicja Czeleń**
-- **Piotr Sączawa**
+A robust **MS SQL Server** database solution designed for a specialized furniture manufacturer (desks, ergonomic chairs, and office equipment). This project simulates a real-world ERP/MRP environment, featuring automated production scheduling, capacity-aware lead time estimation, and a dynamic business rule engine.
 
 ---
 
-##  Kluczowe funkcjonalności
+## 👥 Authors
 
-Projekt implementuje scenariusze biznesowe:
-
-### 1. Inteligentne Zarządzanie Zamówieniami (`AddOrder`)
-- Transakcyjne składanie zamówień z obsługą **koszyka produktów** (Typ tabelaryczny).
-- Automatyczna weryfikacja stanów magazynowych.
-- W przypadku braku towaru: **automatyczne generowanie planów produkcyjnych** (On-demand) i obliczanie realnego terminu dostawy na podstawie mocy przerobowych.
-- Dynamiczny system rabatowy konfigurowalny przez parametry globalne.
-
-### 2. Obsługa Produkcji i Awarii (`Quality Failure Handling`)
-- Unikalny algorytm **planów produkcyjnych**: w przypadku błędu jakościowego (odrzutu), system automatycznie pobiera brakujące sztuki z planów cyklicznych (na magazyn), aby uratować termin zamówienia klienta.
-- Jeśli "podkradanie" jest niemożliwe, system tworzy plan awaryjny i powiadamia o opóźnieniu.
-
-### 3. Analityka i Raportowanie
-- Widoki zoptymalizowane pod raporty zarządcze (sprzedaż, koszty produkcji, bestsellery).
-- System uprawnień (Role: Zarząd, Sprzedaż, Planista, Magazyn).
+*Alicja Czeleń* [[Qumixx]](https://github.com/Qumixx)  
+*Piotr Sączawa* [[loschrix]](https://github.com/loschrix)  
+*Patrycja Zborowska* [[piotrsac]](https://github.com/piotrsac)  
 
 ---
 
-## Technologie
-- **Silnik:** MS SQL Server (T-SQL)
-- **Elementy:**
-  - Procedury Składowane (z obsługą transakcji `BEGIN TRAN` / `ROLLBACK`)
-  - Wyzwalacze (Triggers)
-  - Funkcje skalarne i tabelaryczne
-  - Widoki (Views)
-  - Typy tabelaryczne (User-Defined Table Types)
+## 🚀 Key Features
 
-## Struktura Bazy Danych
-<p align="center">
-  <img src="Projekt_bazy_v0-2026-01-20_20-56.png" alt="Diagram" width="800">
-</p>
+### 1. Intelligent Order Orchestration (`AddOrder`)
+* **Bulk Processing:** Utilizes **User-Defined Table Types (TVP)** to process entire shopping carts in a single ACID-compliant transaction.
+* **Real-time Inventory Check:** Automatically verifies stock levels for finished goods during the ordering process.
+* **On-Demand Production:** If stock is insufficient, the system automatically generates production plans and allocates future output to specific orders.
 
-## Jak uruchomić?
-1. Otwórz **SQL Server Management Studio (SSMS)**.
-2. Uruchom skrypt `script.sql` (tworzy strukturę, widoki i procedury).
+### 2. Automated MRP Logic & Capacity Scheduling
+* **Capacity-Aware Estimations:** Calculates delivery dates based on `AssemblyCapacity` and `ProductionCapacity` constraints.
+* **Working Calendar Integration:** A dedicated `CalculateEndDate` function skips weekends and holidays defined in the `DaysOff` table to provide realistic fulfillment dates.
+* **Quality Control Tracking:** Records daily production progress including quality statuses (Pass/Fail) to monitor manufacturing efficiency.
+
+### 3. Dynamic Business Rule Engine
+* **Singleton Configuration:** A global `Parameters` table allows administrators to adjust profit margins, discount thresholds, and maximum rebates "on-the-fly" without code changes.
+* **Automated Pricing:** Utilizes scalar functions to automatically determine `ProductionCost` and `SellingPrice` based on the Bill of Materials (BOM) and current margins.
+
+### 4. Advanced Analytics & Reporting
+* **Management Dashboard:** High-level views providing monthly and quarterly sales performance and production cost aggregations.
+* **Inventory Intelligence:** Real-time tracking of raw materials (Parts) vs. finished products.
+* **Customer Insights:** Detailed historical analysis of order patterns and applied discounts over various time periods.
 
 ---
-*Projekt realizowany w ramach przedmiotu Podstawy Baz Danych (2025/2026).*
+
+## 🛠 Technical Stack
+* **Engine:** Microsoft SQL Server (T-SQL)
+* **Architecture:** Relational Schema with 14 normalized tables.
+* **Logic Layers:**
+    * **Stored Procedures:** Complex business workflows with `TRY...CATCH` error handling and transaction management.
+    * **Triggers:** Integrity enforcement for production status transitions.
+    * **Security:** Role-Based Access Control (RBAC) with 4 distinct roles (Management, Sales, Planning, Warehouse).
+
+---
+
+## 📂 Database Schema Overview
+The system is built on five core modules:
+
+| Module | Key Tables  |
+| :--- | :--- |
+| **Sales** | `Orders`, `OrderDetails`, `Clients`, `Status` |
+| **Production** | `ProductionPlans`, `ProductionDailyLog`, `ProductionAllocations` |
+| **Inventory (BOM)** | `Products`, `ProductParts`, `Parts`, `PartTypes`, `Categories` |
+| **Business Logic** | `Parameters` (Global Settings) |
+| **Logistics** | `DaysOff` (Holiday/Downtime Calendar) |
+
+
+<img width="1460" height="736" alt="Projekt_bazy_v0-2026-01-20_20-56 (1)" src="https://github.com/user-attachments/assets/8c2c1c2e-c95c-45ae-8841-ee30056861d7" />
+
+---
+
+## 💻 Setup & Installation
+1. Open **SQL Server Management Studio (SSMS)**.
+2. Execute the schema script to generate the 14-table structure.
+3. Load the stored procedures, functions, and triggers to enable business logic.
+
+---
+*Developed as a Final Project for the Database Systems course (2025/2026) at AGH UST.*
