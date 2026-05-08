@@ -8,8 +8,8 @@ A robust **MS SQL Server** database solution designed for a specialized furnitur
 
 ## 👥 Authors
 
-_Alicja Czeleń_ [[Qumixx]](https://github.com/Qumixx)
-_Piotr Sączawa_ [[piotrsac]](https://github.com/piotrsac)
+_Alicja Czeleń_ [[Qumixx]](https://github.com/Qumixx)  
+_Piotr Sączawa_ [[piotrsac]](https://github.com/piotrsac)  
 _Patrycja Zborowska_ [[loschrix]](https://github.com/loschrix)
 
 ---
